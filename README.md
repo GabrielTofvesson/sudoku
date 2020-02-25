@@ -42,13 +42,16 @@ To test the functionality, simply run `gcc -o sudoku main.c board.c`, then
 `./sudoku [filename]`, where the given file is formatted according to the
 aforementioned specifications.
 
+## Optimization
+An optimization directive has been included in `board.c` to allow for the near
+complete removal of boundary checks and error conditions. To enable this
+optimization, simply add `-DOPTIMIZE` to your compiler flags.
+
 ## TODO
 
 * Optimizations
 
   * Per-quadrant bit-field of populated values
-
-  * Fewer boundary checks (compilation option?)
 
   * Packed structures
 
