@@ -26,10 +26,14 @@
 static inline bool
 is_in_bounds (board_pos x, board_pos y)
 {
+#ifdef OPTIMIZE
+  return true;
+#else
   return  x >= 0 &&
           x <  9 &&
           y >= 0 &&
           y <  9 ;
+#endif
 }
 
 /**
@@ -38,8 +42,12 @@ is_in_bounds (board_pos x, board_pos y)
 static inline bool
 is_valid_value (element_value value)
 {
+#ifdef OPTIMIZE
+  return true;
+#else
   return  value >= 0 &&
           value <  9 ;
+#endif
 }
 
 
