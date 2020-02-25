@@ -8,6 +8,16 @@
 #include <unistd.h>
 #include "board.h"
 
+
+/**
+ * ANSI control codes
+ */
+#define COLOUR_RED    "\e[31m"
+#define COLOUR_RESET  "\e[0m"
+#define CLEAR         "\033[2J"
+
+
+
 /**
  * How many boards to allocate by default for board spec
  * Average depth for highly complex boards is between 10 and 12
@@ -151,17 +161,39 @@ copy_to_board (struct board_file file, struct board *board)
     }
 }
 
+
 static void
-print_board (struct board *board)
+ansi_set_cursor (unsigned y, unsigned x)
+{
+  printf ("\033[%u;%uH", x + 1, y + 1);
+}
+
+
+static void
+ansi_clear_screen ()
+{
+  puts (CLEAR);
+}
+
+
+static void
+print_board (const struct board *board, const struct board *compare, unsigned whence_x, unsigned whence_y)
 {
   for (board_pos y = 0; y < 9; ++y)
   {
     /* Print row */
     for (board_pos x = 0; x < 9; ++x)
     {
+      ansi_set_cursor (whence_x + (x * 2), whence_y + (y * 2));
+
       /* Print board element */
       if (board_has_value (board, x, y))
-        printf ("%u", board_get_value (board, x, y) + 1);
+      {
+        if (compare != NULL && ! board_has_value (compare, x, y))
+          printf (COLOUR_RED "%u" COLOUR_RESET, board_get_value (board, x, y) + 1);
+        else
+          printf ("%u", board_get_value (board, x, y) + 1);
+      }
       else
         fputs (" ", stdout);
 
@@ -170,19 +202,17 @@ print_board (struct board *board)
         fputs("|", stdout);
     }
     
-    fputs("\n", stdout);
-    
     /* Print row element delimiter */
     if (y < 8)
     {
       for (board_pos x = 0; x < 17; ++x)
       {
+        ansi_set_cursor (whence_x + x, whence_y + (y * 2 + 1));
         if ((x & 1) == 0)
           fputs ("-", stdout);
         else
           fputs ("+", stdout);
       }
-      fputs ("\n", stdout);
     }
   }
 }
@@ -302,19 +332,25 @@ main (int argc, char **argv, char **env)
     return -1;
 
   /* Allocate board */
+  struct board original;
+
   struct boards_table boards;
   boards.max_depth = 0;
+  boards.board_specs = NULL;
   tables_ensure_depth (&boards, 0);
 
   struct board *root_board = boards.board_specs[0];
 
-  copy_to_board (file, root_board);
+  copy_to_board (file, &original);
+  board_copy (&original, boards.board_specs[0]);
 
   close_board_file (file);
 
   board_update_all_marks (root_board);
+  
+  ansi_clear_screen ();
 
-  print_board (root_board);
+  print_board (root_board, NULL, 0, 0);
 
   if (! board_is_valid (root_board))
   {
@@ -322,7 +358,8 @@ main (int argc, char **argv, char **env)
     return 1;
   }
 
-  puts("\nReducing...");
+  ansi_set_cursor (0, 18);
+  puts("Reducing...");
 
   /* Profiler start time */
   clock_t start_clk = clock ();
@@ -332,8 +369,9 @@ main (int argc, char **argv, char **env)
   /* Profiler end time */
   clock_t end_clk = clock ();
 
-  print_board (root_board);
+  print_board (root_board, &original, 21, 0);
  
+  ansi_set_cursor (0, 18);
   printf ("Simplification took %Lf seconds\n", ((long double)(end_clk - start_clk))/CLOCKS_PER_SEC);
 
   return 0;
