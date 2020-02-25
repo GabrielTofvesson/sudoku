@@ -325,18 +325,16 @@ main (int argc, char **argv, char **env)
   puts("\nReducing...");
 
   /* Profiler start time */
-  time_t start;
-  time (&start);
+  clock_t start_clk = clock ();
   
   simplify (&boards, 0);
 
   /* Profiler end time */
-  time_t end;
-  time (&end);
+  clock_t end_clk = clock ();
 
   print_board (root_board);
  
-  printf ("Simplification took %llu seconds to complete\n", end - start);
+  printf ("Simplification took %Lf seconds\n", ((long double)(end_clk - start_clk))/CLOCKS_PER_SEC);
 
   return 0;
 }
