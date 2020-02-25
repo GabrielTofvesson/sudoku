@@ -597,6 +597,7 @@ board_place (
 struct board *
 board_place_speculative (
   const struct board *board,
+  struct board *board_duplicate,
   board_pos x,
   board_pos y,
   element_value value
@@ -608,14 +609,10 @@ board_place_speculative (
     if (board_can_place_value (board, x, y, value))
     {
       /* Create duplicate and place value */
-      struct board *board_duplicate = malloc (sizeof (struct board));
       board_copy (board, board_duplicate);
 
       if (! board_place (board_duplicate, x, y, value))
-      {
-        free (board_duplicate);
         return NULL;
-      }
 
       return board_duplicate;
     }

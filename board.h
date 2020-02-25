@@ -261,6 +261,7 @@ board_place (
 struct board *
 board_place_speculative (
   const struct board *board,
+  struct board *board_duplicate,
   board_pos x,
   board_pos y,
   element_value value
