@@ -7,10 +7,54 @@
 #include <unistd.h>
 #include "board.h"
 
+/**
+ * How many boards to allocate by default for board spec
+ * Average depth for highly complex boards is between 10 and 12
+ */
+#define DEFAULT_DEPTH 10
 
+/**
+ * How many boards to allocate per depth increase
+ * Higher values mean fewer reallocations, by with greater resource costs
+ */
+#define DEPTH_INCREMENT 3
+
+
+struct boards_table {
+  struct board **board_specs;
+  unsigned long long max_depth;
+};
+
+
+void
+tables_ensure_depth (struct boards_table *board_spec, unsigned long long depth)
+{
+  if (board_spec->max_depth <= depth)
+  {
+    /* Compute new max depth */
+    unsigned long long new_max;
+    if (board_spec->max_depth == 0)
+      new_max = DEFAULT_DEPTH;
+    else
+      new_max = board_spec->max_depth + DEPTH_INCREMENT;
+
+    /* Disregard NULL return value. What's it gonna do, segfault? :P */
+    board_spec->board_specs = realloc (
+        board_spec->board_specs,
+        sizeof (struct board *) * new_max
+    );
+
+    /* Allocate boards */
+    for (unsigned long long l = board_spec->max_depth; l < new_max; ++l)
+      board_spec->board_specs[l] = malloc (sizeof (struct board));
+
+    /* Update max depth */
+    board_spec->max_depth = new_max;
+  }
+}
 
 bool
-simplify (struct board *board, unsigned long long depth);
+simplify (struct boards_table *board_spec, unsigned long long depth);
 
 
 struct board_file
@@ -176,8 +220,11 @@ first_potential_value (struct board_element *element, struct board *board, bool 
  * Reduce away all elements on board with complexity=1 until none remain
  */
 bool
-simplify (struct board *board, unsigned long long depth)
+simplify (struct boards_table *board_specs, unsigned long long depth)
 {
+  /* Get current table */
+  struct board *board = board_specs->board_specs[depth];
+
   bool error;
   /* Reduce using low-complexity computation */
   while (board->complexity == 1)
@@ -212,31 +259,30 @@ simplify (struct board *board, unsigned long long depth)
           for (element_value value = 0; value < 9; ++value)
           {
             /* Try speculative placement of each potential value and recurse */
+            tables_ensure_depth (board_specs, depth + 1);
             if ((elem->potential & (1 << value)) != 0)
             {
-              /* printf ("Speculating (%u, %u) = %u (depth = %llu)\n", x, y, value, depth); */
               struct board *board_spec =
-                board_place_speculative (board, x, y, value);
+                board_place_speculative (
+                  board,
+                  board_specs->board_specs[depth + 1],
+                  x,
+                  y,
+                  value
+                );
 
               /* If speculative placement failed, try another value */
               if (board_spec == NULL)
-              {
-                /* printf ("Speculation failed catastrophically\n"); */
                 continue;
-              }
 
               /* Found solution */
-              if (simplify (board_spec, depth + 1) && board_spec->complexity == 0)
+              if (simplify (board_specs, depth + 1) && board_spec->complexity == 0)
               {
                 board_copy (board_spec, board);
                 x = 9;
                 y = 9;
                 value = 9;
               }
-              /* else printf ("Speculation failed\n"); */
-
-              /* board_copy leaves resposibility of freeing to caller */
-              free (board_spec);
             }
           }
       }
@@ -254,27 +300,33 @@ main (int argc, char **argv, char **env)
   if (file.fd == -1 || file.data == NULL)
     return -1;
 
-  struct board board;
-  copy_to_board (file, &board);
+  /* Allocate board */
+  struct boards_table boards;
+  boards.max_depth = 0;
+  tables_ensure_depth (&boards, 0);
+
+  struct board *root_board = boards.board_specs[0];
+
+  copy_to_board (file, root_board);
 
   close_board_file (file);
 
-  board_update_all_marks (&board);
+  board_update_all_marks (root_board);
 
-  print_board (&board);
+  print_board (root_board);
 
-  if (board_is_valid (&board))
-    printf ("Board is valid!\nBoard complexity: %u\n", board.complexity);
+  if (board_is_valid (root_board))
+    printf ("Board is valid!\nBoard complexity: %u\n", root_board->complexity);
   else
     puts ("Board is invalid!");
 
   puts("\nReducing...");
-  simplify (&board, 1);
+  simplify (&boards, 0);
 
-  print_board (&board);
+  print_board (root_board);
  
-  if (board_is_valid (&board))
-    printf ("Board is valid!\nBoard complexity: %u\n", board.complexity);
+  if (board_is_valid (root_board))
+    printf ("Board is valid!\nBoard complexity: %u\n", root_board->complexity);
   else
     puts ("Board is invalid!");
 
