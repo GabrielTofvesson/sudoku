@@ -117,7 +117,7 @@ board_unmark (
 
 bool
 board_has_value (
-  struct board *board,
+  const struct board *board,
   board_pos x,
   board_pos y
 )
@@ -132,7 +132,7 @@ board_has_value (
 
 element_value
 board_get_value (
-  struct board *board,
+  const struct board *board,
   board_pos x,
   board_pos y
 )
@@ -163,7 +163,7 @@ board_is_marked (
 
 bool
 board_can_place_value (
-  struct board *board,
+  const struct board *board,
   board_pos x,
   board_pos y,
   element_value value
@@ -574,13 +574,11 @@ board_place (
             board_unmark (board, target_x, target_y, value);
         }
 
-      /* Set value */
+        /* Set value */
       board_set (board, x, y, value); 
 
       /* Update board complexity */
-      board_refresh_complexity (board);
-      
-      return true;
+      return board_refresh_complexity (board);
     }
     else return false;
   }
@@ -588,7 +586,38 @@ board_place (
 }
 
 
-void
+struct board *
+board_place_speculative (
+  const struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+)
+{
+  if (is_in_bounds (x, y) && is_valid_value (value))
+  {
+    /* Ensure value can be placed*/
+    if (board_can_place_value (board, x, y, value))
+    {
+      /* Create duplicate and place value */
+      struct board *board_duplicate = malloc (sizeof (struct board));
+      board_copy (board, board_duplicate);
+
+      if (! board_place (board_duplicate, x, y, value))
+      {
+        free (board_duplicate);
+        return NULL;
+      }
+
+      return board_duplicate;
+    }
+    else return NULL;
+  }
+  else ERROR("Invalid parameters to function board_place_speculative()");
+}
+
+
+bool
 board_refresh_complexity (struct board *board)
 {
   board_update_all_marks (board);
@@ -601,17 +630,23 @@ board_refresh_complexity (struct board *board)
         struct board_element *elem = BOARD_ELEM (board, x, y);
         if (elem->complexity < board->complexity)
         {
+          /* If complexity is somehow 0, we have an invalid board state */
+          if (elem->complexity == 0)
+            return false;
+
           board->complexity = elem->complexity;
 
           /* Short-circuit function on comlpexity=1, since it can't go lower */
           if (board->complexity == 1)
-            return;
+            return true;
         }
       }
 
   /* If there are no complex board elements, board is solved */
   if (board->complexity == 10)
     board->complexity = 0;
+
+  return true;
 }
 
 

@@ -102,7 +102,7 @@ board_unmark (
  */
 bool
 board_has_value (
-  struct board *board,
+  const struct board *board,
   board_pos x,
   board_pos y
 );
@@ -115,7 +115,7 @@ board_has_value (
  */
 element_value
 board_get_value (
-  struct board *board,
+  const struct board *board,
   board_pos x,
   board_pos y
 );
@@ -141,7 +141,7 @@ board_is_marked (
  */
 bool
 board_can_place_value (
-  struct board *board,
+  const struct board *board,
   board_pos x,
   board_pos y,
   element_value value
@@ -252,10 +252,26 @@ board_place (
 
 
 /**
+ * Place a speculative value. This allocates a duplicate board with the element
+ * placed at the given location, if possible, while leaving the given board
+ * untouched
+ *
+ * NOTE: If element cannot be placed, this returns NULL
+ */
+struct board *
+board_place_speculative (
+  const struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
+
+
+/**
  * Recomputes board complexity by searching all elements on board for the
  * lowest complexity
  */
-void
+bool
 board_refresh_complexity (struct board *board);
 
 
