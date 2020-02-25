@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <time.h>
 #include <unistd.h>
 #include "board.h"
 
@@ -315,20 +316,27 @@ main (int argc, char **argv, char **env)
 
   print_board (root_board);
 
-  if (board_is_valid (root_board))
-    printf ("Board is valid!\nBoard complexity: %u\n", root_board->complexity);
-  else
-    puts ("Board is invalid!");
+  if (! board_is_valid (root_board))
+  {
+    puts ("Supplied board is not valid!");
+    return 1;
+  }
 
   puts("\nReducing...");
+
+  /* Profiler start time */
+  time_t start;
+  time (&start);
+  
   simplify (&boards, 0);
+
+  /* Profiler end time */
+  time_t end;
+  time (&end);
 
   print_board (root_board);
  
-  if (board_is_valid (root_board))
-    printf ("Board is valid!\nBoard complexity: %u\n", root_board->complexity);
-  else
-    puts ("Board is invalid!");
+  printf ("Simplification took %llu seconds to complete\n", end - start);
 
   return 0;
 }
