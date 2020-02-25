@@ -613,3 +613,10 @@ board_refresh_complexity (struct board *board)
   if (board->complexity == 10)
     board->complexity = 0;
 }
+
+
+void
+board_copy (const struct board *board_from, struct board *board_to)
+{
+  memcpy (board_to, board_from, sizeof(struct board));
+}

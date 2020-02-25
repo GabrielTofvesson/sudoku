@@ -257,3 +257,10 @@ board_place (
  */
 void
 board_refresh_complexity (struct board *board);
+
+
+/**
+ * Copy a board layout to another board
+ */
+void
+board_copy (const struct board *board_from, struct board *board_to);
