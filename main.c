@@ -7,6 +7,12 @@
 #include <unistd.h>
 #include "board.h"
 
+
+
+bool
+simplify (struct board *board, unsigned long long depth);
+
+
 struct board_file
 {
   int fd;
@@ -141,14 +147,16 @@ print_board (struct board *board)
  * Compute first potential value of a given element
  */
 element_value
-first_potential_value (struct board_element *element, struct board *board)
+first_potential_value (struct board_element *element, struct board *board, bool *error)
 {
   unsigned short potential = element->potential;
   if (potential == 0)
   {
-    print_board (board);
-    abort(); /* Error */
+    *error = true;
+    return 0;
   }
+
+  *error = false;
   
   element_value value = 0;
   while (potential != 0)
@@ -167,9 +175,11 @@ first_potential_value (struct board_element *element, struct board *board)
 /**
  * Reduce away all elements on board with complexity=1 until none remain
  */
-void
-simplify (struct board *board)
+bool
+simplify (struct board *board, unsigned long long depth)
 {
+  bool error;
+  /* Reduce using low-complexity computation */
   while (board->complexity == 1)
   {
     for (board_pos y = 0; y < 9; ++y)
@@ -179,10 +189,59 @@ simplify (struct board *board)
           struct board_element *elem = BOARD_ELEM (board, x, y);
           if (elem->complexity == 1)
           {
-            board_place (board, x, y, first_potential_value (elem, board));
+            element_value value = first_potential_value (elem, board, &error);
+            if (error) return false;
+
+            board_place (board, x, y, value);
           }
         }
   }
+
+  /* Attempt to reduce with speculative placement */
+  if (board->complexity > 1)
+  {
+    for (board_pos y = 0; y < 9; ++y)
+      for (board_pos x = 0; x < 9; ++x)
+      {
+        struct board_element *elem = BOARD_ELEM (board, x, y);
+        /* Find a simplest element on the board*/
+        if (
+            ! board_has_value (board, x, y) &&
+            elem->complexity == board->complexity
+        )
+          for (element_value value = 0; value < 9; ++value)
+          {
+            /* Try speculative placement of each potential value and recurse */
+            if ((elem->potential & (1 << value)) != 0)
+            {
+              /* printf ("Speculating (%u, %u) = %u (depth = %llu)\n", x, y, value, depth); */
+              struct board *board_spec =
+                board_place_speculative (board, x, y, value);
+
+              /* If speculative placement failed, try another value */
+              if (board_spec == NULL)
+              {
+                /* printf ("Speculation failed catastrophically\n"); */
+                continue;
+              }
+
+              /* Found solution */
+              if (simplify (board_spec, depth + 1) && board_spec->complexity == 0)
+              {
+                board_copy (board_spec, board);
+                x = 9;
+                y = 9;
+                value = 9;
+              }
+              /* else printf ("Speculation failed\n"); */
+
+              /* board_copy leaves resposibility of freeing to caller */
+              free (board_spec);
+            }
+          }
+      }
+  }
+  return true;
 }
 
 
@@ -210,7 +269,7 @@ main (int argc, char **argv, char **env)
     puts ("Board is invalid!");
 
   puts("\nReducing...");
-  simplify (&board);
+  simplify (&board, 1);
 
   print_board (&board);
  

@@ -44,8 +44,6 @@ aforementioned specifications.
 
 ## TODO
 
-* Speculative value placement
-
 * Optimizations
 
   * Per-quadrant bit-field of populated values
