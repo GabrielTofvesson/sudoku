@@ -4,16 +4,24 @@
  * Created by Gabriel Tofvesson
  */
 
+#include <stdbool.h>
 
+/**
+ * Get a `struct board_element`-entry from a specified location on the board
+ */
+#define BOARD_ELEM(board_ptr, x, y) (&(board_ptr)->elements[((y) * 9) + (x)])
+
+typedef unsigned short int board_pos;
+typedef unsigned char element_value;
 
 /**
  * Simple definition of a board element. Vaild values range: 0-8
  */
 struct board_element {
-  unsigned char has_value : 1;        /* Whether element has a decided value */
+  bool has_value : 1;                 /* Whether element has a decided value */
 
   union {
-    unsigned char  value     : 4;     /* Value of element */
+    element_value  value     : 4;     /* Value of element */
     unsigned short potential : 9;     /* Bitfield of possible values */
   };
 };
