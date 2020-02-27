@@ -149,3 +149,63 @@ board_is_marked (
   }
   else ERROR("Invalid parameters to function board_is_marked()");
 }
+
+
+bool
+board_can_place_value (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+)
+{
+  if (is_in_bounds (x, y) && is_valid_value (value))
+  {
+    /* Check for x-axis */
+    for (board_pos compare_x = 0; compare_x < 9; ++compare_x)
+    {
+      if (compare_x == x)
+        continue;
+      else if (
+                board_has_value (board, compare_x, y) &&
+                board_get_value (board, compare_x, y) == value
+              )
+        return false;
+    }
+
+    /* Check for y-axis */
+    for (board_pos compare_y = 0; compare_y < 9; ++compare_y)
+    {
+      if (compare_y == y)
+        continue;
+      else if (
+                board_has_value (board, x, compare_y) &&
+                board_get_value (board, x, compare_y) == value
+      )
+        return false;
+    }
+    
+    /* No matches */
+    return true;
+  }
+  else ERROR("Invalid parameters to function board_can_place_value()");
+}
+
+
+bool
+board_is_valid (struct board *board)
+{
+  for (board_pos y = 0; y < 9; ++y)
+    for (board_pos x = 0; x < 9; ++x)
+      if (
+            board_has_value (board, x, y) &&
+            ! board_can_place_value (
+                board,
+                x,
+                y,
+                BOARD_ELEM (board, x, y)->value
+              )
+      )
+        return false;
+  return true;
+}

@@ -121,3 +121,24 @@ board_is_marked (
   board_pos y,
   element_value value
 );
+
+
+/**
+ * Checks if placing the given value at the given position on the board would
+ * leave the board in a valid state
+ */
+bool
+board_can_place_value (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
+
+
+/**
+ * Checks if there are any pairs of board elements that share a value and
+ * also share either a row or a column
+ */
+bool
+board_is_valid (struct board *board);
