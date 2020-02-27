@@ -87,3 +87,49 @@ board_unmark (
     elem->potential &= (1 << value) ^ 0x1FF;
   }
 }
+
+
+bool
+board_has_value (
+  struct board *board,
+  board_pos x,
+  board_pos y
+)
+{
+  if (is_in_bounds (x, y))
+  {
+    return BOARD_ELEM (board, x, y)->has_value;
+  }
+  return false;
+}
+
+
+element_value
+board_get_value (
+  struct board *board,
+  board_pos x,
+  board_pos y
+)
+{
+  if (is_in_bounds (x, y))
+  {
+    return BOARD_ELEM (board, x, y)->value;
+  }
+  return 0;
+}
+
+
+bool
+board_is_marked (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+)
+{
+  if (is_in_bounds (x, y) && is_valid_value (value))
+  {
+    return BOARD_ELEM (board, x, y)->potential & (1 << value);
+  }
+  return false;
+}

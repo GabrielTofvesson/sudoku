@@ -83,3 +83,41 @@ board_unmark (
   board_pos y,
   element_value value
 );
+
+
+/**
+ * Get whether or not an element has a decided value
+ */
+bool
+board_has_value (
+  struct board *board,
+  board_pos x,
+  board_pos y
+);
+
+
+/**
+ * Get definite value of a board element
+ *
+ * NOTE: Getting the definite value of an element without a value is undefined
+ */
+element_value
+board_get_value (
+  struct board *board,
+  board_pos x,
+  board_pos y
+);
+
+
+/**
+ * Get whether or not a board element is marked with a particular value
+ *
+ * NOTE: Getting the mark state of an element with a value is undefined
+ */
+bool
+board_is_marked (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
