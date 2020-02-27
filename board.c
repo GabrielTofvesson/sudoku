@@ -4,8 +4,21 @@
  * Created by Gabriel Tofvesson
  */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "board.h"
+
+
+/**
+ * Raises an error by printing it to stderr and stopping execution
+ */
+#define ERROR(reason)                     \
+{                                         \
+  fprintf(stderr, "ERROR: %s\n", reason); \
+  abort();                                \
+}
+
 
 /**
  * Check if a given xy-pair is in bounds of a Sudoku board
@@ -52,6 +65,7 @@ board_set (
     elem->has_value = true;
     elem->value = value;
   }
+  else ERROR("Invalid parameters to function board_set()");
 }
 
 
@@ -68,6 +82,7 @@ board_mark (
     struct board_element *elem = BOARD_ELEM (board, x, y);
     elem->potential |= 1 << value;
   }
+  else ERROR("Invalid parameters to function board_mark()");
 }
 
 
@@ -86,6 +101,7 @@ board_unmark (
     /* Shift bit to correct place and then invert first 9 bits */
     elem->potential &= (1 << value) ^ 0x1FF;
   }
+  else ERROR("Invalid parameters to function board_unmark()");
 }
 
 
@@ -100,7 +116,7 @@ board_has_value (
   {
     return BOARD_ELEM (board, x, y)->has_value;
   }
-  return false;
+  else ERROR("Invalid parameters to function board_has_value()");
 }
 
 
@@ -115,7 +131,7 @@ board_get_value (
   {
     return BOARD_ELEM (board, x, y)->value;
   }
-  return 0;
+  else ERROR("Invalid parameters to function board_get_value()");
 }
 
 
@@ -131,5 +147,5 @@ board_is_marked (
   {
     return BOARD_ELEM (board, x, y)->potential & (1 << value);
   }
-  return false;
+  else ERROR("Invalid parameters to function board_is_marked()");
 }
