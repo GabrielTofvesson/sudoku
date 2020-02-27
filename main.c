@@ -152,5 +152,10 @@ main (int argc, char **argv, char **env)
 
   print_board (&board);
 
+  if (board_is_valid (&board))
+    puts("Board is valid!");
+  else
+    puts ("Board is invalid!");
+
   return 0;
 }
