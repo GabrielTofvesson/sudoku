@@ -142,3 +142,38 @@ board_can_place_value (
  */
 bool
 board_is_valid (struct board *board);
+
+
+/**
+ * Check row and column of given position and mark potential values that could
+ * be set at that position and still leave the board in a valid state
+ */
+void
+board_update_marks (
+  struct board *board,
+  board_pos x,
+  board_pos y
+);
+
+
+/**
+ * Refreshes marks of all board elements without a value
+ */
+void
+board_update_all_marks (struct board *board);
+
+
+/**
+ * Attempt to set value at the given position
+ * If value can be placed, this updates all elements without a value on the
+ * same row or column that do not have a value so that their markers reflect
+ * the addition of this value and returns true
+ * If value cannot be placed, just return false
+ */
+bool
+board_place (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
