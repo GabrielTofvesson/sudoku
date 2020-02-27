@@ -36,3 +36,50 @@ struct board {
   struct board_element elements[81];  /* Game board */
   unsigned char complexity;           /* Complexity of simplest element */
 };
+
+/**
+ * Initialize a board to a blank state with 0 complexity
+ */
+void
+board_init (struct board *board);
+
+
+/**
+ * Set the value of an element on the board
+ * 
+ * NOTE: This marks an element as having a decided value
+ */
+void
+board_set (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
+
+/**
+ * Mark a potential value of an element on the board
+ *
+ * NOTE: Marking an element with a decided value is undefined
+ */
+void
+board_mark (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
+
+
+/**
+ * Removes a marking of a potential value of an element on the board
+ *
+ * NOTE: Unmarking an element with a decied value is undefined
+ */
+void
+board_unmark (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
