@@ -250,10 +250,10 @@ board_update_marks (
     elem->potential ^= 0x1FF;
 
     /* Count marked bits */
-    unsigned char potential = elem->potential;
+    unsigned short potential = elem->potential;
     while (potential != 0)
     {
-      if (potential & 1 == 1)
+      if ((potential & 1) == 1)
         ++(elem->complexity);
       potential >>= 1;
     }
