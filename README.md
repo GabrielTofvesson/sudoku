@@ -4,7 +4,9 @@ A simple sudoku problem solver
 ## File format
 The sudoku solver accepts a file for the following format:
 * Each row consists of 9 characters (+ newline)
+
 * Each character on a row (aside from newline) must be '0'-'9' or ' ' (if value is unknown)
+
 * There must be a total of 9 rows
 
 For example, a file might look as follows:
@@ -33,3 +35,14 @@ or
 8 12345 7
 912345678
 ```
+
+
+## Test
+To test the functionality, simply run `gcc -o sudoku main.c board.c`, then
+`./sudoku [filename]`, where the given file is formatted according to the
+aforementioned specifications.
+
+## TODO
+* Speculative value placement
+
+* Optimizations
