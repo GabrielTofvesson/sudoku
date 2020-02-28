@@ -1,5 +1,5 @@
 # Sudoku solver
-A simple sudoku problem solver
+A simple sudoku problem solver because I got bored of solving them manually.
 
 ## File format
 The sudoku solver accepts a file for the following format:
@@ -37,12 +37,25 @@ or
 ```
 
 
-## Test
+## Compiling and running
 To test the functionality, simply run `gcc -o sudoku main.c board.c`, then
 `./sudoku [filename]`, where the given file is formatted according to the
 aforementioned specifications.
 
 ## TODO
+
 * Speculative value placement
 
 * Optimizations
+
+  * Per-quadrant bit-field of populated values
+
+  * Fewer boundary checks (compilation option?)
+
+  * Packed structures
+
+  * Better structure layouts
+
+* Better error messages
+
+* Makefile
