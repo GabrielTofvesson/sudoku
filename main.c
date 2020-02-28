@@ -136,6 +136,56 @@ print_board (struct board *board)
   }
 }
 
+
+/**
+ * Compute first potential value of a given element
+ */
+element_value
+first_potential_value (struct board_element *element, struct board *board)
+{
+  unsigned short potential = element->potential;
+  if (potential == 0)
+  {
+    print_board (board);
+    abort(); /* Error */
+  }
+  
+  element_value value = 0;
+  while (potential != 0)
+  {
+    if (potential & 1 == 1)
+      return value;
+    ++value;
+    potential >>= 1;
+  }
+  
+  /* Unreachable */
+  abort();
+}
+
+
+/**
+ * Reduce away all elements on board with complexity=1 until none remain
+ */
+void
+simplify (struct board *board)
+{
+  while (board->complexity == 1)
+  {
+    for (board_pos y = 0; y < 9; ++y)
+      for (board_pos x = 0; x < 9; ++x)
+        if (! board_has_value (board, x, y))
+        {
+          struct board_element *elem = BOARD_ELEM (board, x, y);
+          if (elem->complexity == 1)
+          {
+            board_place (board, x, y, first_potential_value (elem, board));
+          }
+        }
+  }
+}
+
+
 int
 main (int argc, char **argv, char **env)
 {
@@ -154,6 +204,16 @@ main (int argc, char **argv, char **env)
 
   print_board (&board);
 
+  if (board_is_valid (&board))
+    printf ("Board is valid!\nBoard complexity: %u\n", board.complexity);
+  else
+    puts ("Board is invalid!");
+
+  puts("\nReducing...");
+  simplify (&board);
+
+  print_board (&board);
+ 
   if (board_is_valid (&board))
     printf ("Board is valid!\nBoard complexity: %u\n", board.complexity);
   else
