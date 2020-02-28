@@ -150,10 +150,12 @@ main (int argc, char **argv, char **env)
 
   close_board_file (file);
 
+  board_update_all_marks (&board);
+
   print_board (&board);
 
   if (board_is_valid (&board))
-    puts("Board is valid!");
+    printf ("Board is valid!\nBoard complexity: %u\n", board.complexity);
   else
     puts ("Board is invalid!");
 
