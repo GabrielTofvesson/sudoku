@@ -11,6 +11,11 @@
  */
 #define BOARD_ELEM(board_ptr, x, y) (&(board_ptr)->elements[((y) * 9) + (x)])
 
+/**
+ * Convert any valid board position to a quadrant base position (lowest index)
+ */
+#define TO_QUAD(pos) (((pos) / 3) * 3)
+
 typedef unsigned short int board_pos;
 typedef unsigned char element_value;
 
@@ -157,6 +162,66 @@ board_is_valid (struct board *board);
  */
 void
 board_update_marks (
+  struct board *board,
+  board_pos x,
+  board_pos y
+);
+
+
+/**
+ * Check if setting a value at a given position would prevent a quadrant from
+ * setting a certain value
+ */
+bool
+board_can_quad_set_value (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
+
+
+/**
+ * Structure describing result of a value search in a quadrant
+ */
+struct count_result
+{
+  bool is_set;
+  unsigned char count : 4;
+  struct board_element *unique;
+};
+
+
+/**
+ * Compute amount of unset board elements in a quadrant with a given potential
+ * bit field value 
+ */
+struct count_result
+board_count_quad_potentials (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
+
+
+/**
+ * Update potential values by analysing other potential values in quadrant
+ */
+bool
+board_update_marks_by_quad (
+  struct board *board,
+  board_pos x,
+  board_pos y
+);
+
+
+/**
+ * Update potential values by analysing if it would prevent other quadrants
+ * from setting a certain value
+ */
+bool
+board_update_marks_by_excl (
   struct board *board,
   board_pos x,
   board_pos y

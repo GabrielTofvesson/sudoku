@@ -266,6 +266,246 @@ board_update_marks (
 }
 
 
+bool
+board_can_quad_set_value (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+)
+{
+  if (is_in_bounds (x, y) && is_valid_value (value))
+  {
+    struct board_element *elem = BOARD_ELEM (board, x, y);
+
+    /* Compute quadrant bases */
+    board_pos quad_x = TO_QUAD (x);
+    board_pos quad_y = TO_QUAD (y);
+
+    /* Compute sub-quadrant positions */
+    board_pos simp_x = x % 3;
+    board_pos simp_y = y % 3;
+
+
+    bool next = false;
+
+    /* Check along x-axis */
+    for (board_pos base_x = 0; base_x < 9; base_x += 3)
+    {
+      next = false;
+      if (base_x != quad_x)
+      {
+        for (board_pos check_y = 0; check_y < 3 && ! next; ++check_y)
+          if (check_y != simp_y)
+            for (board_pos check_x = 0; check_x < 3 && ! next; ++check_x)
+            {
+              board_pos target_x = base_x + check_x;
+              board_pos target_y = quad_y + check_y;
+
+              bool has_value = board_has_value (board, target_x, target_y);
+
+              /* Check if a quadrant can contain the given value */
+              if (
+                  (
+                    has_value &&
+                    BOARD_ELEM (board, target_x, target_y)->value == value
+                  ) ||
+                  (
+                    ! has_value &&
+                    board_is_marked (board, target_x, target_y, value)
+                  )
+              )
+              {
+                next = true;
+                break;
+              }
+            }
+        if (! next) 
+          return false;
+      }
+    }
+
+    /* Check along y-axis */
+    for (board_pos base_y = 0; base_y < 9; base_y += 3)
+    {
+      next = false;
+      if (base_y != quad_y)
+      {
+        for (board_pos check_x = 0; check_x < 3 && ! next; ++check_x)
+          if (check_x != simp_x)
+            for (board_pos check_y = 0; check_y < 3 && ! next; ++check_y)
+            {
+              board_pos target_x = quad_x + check_x;
+              board_pos target_y = base_y + check_y;
+
+              bool has_value = board_has_value (board, target_x, target_y);
+
+              /* Check if a quadrant can contain the given value */
+              if (
+                  (
+                    has_value &&
+                    BOARD_ELEM (board, target_x, target_y)->value == value
+                  ) ||
+                  (
+                    ! has_value &&
+                    board_is_marked (board, target_x, target_y, value)
+                  )
+              )
+              {
+                next = true;
+                break;
+              }
+            }
+        if (! next) 
+          return false;
+      }
+    }
+
+    return true;
+  }
+  else ERROR("Invalid parameters to function board_can_quad_set_value()");
+}
+
+
+/**
+ * Compute amount of unset board elements in a quadrant with a given potential
+ * bit field value marked.
+ */
+struct count_result
+board_count_quad_potentials (
+  struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+)
+{
+  if (is_in_bounds (x, y) && is_valid_value (value))
+  {
+    board_pos quad_x = TO_QUAD (x);
+    board_pos quad_y = TO_QUAD (y);
+
+    struct count_result result;
+    result.count = 0;
+    result.unique = NULL;
+    result.is_set = false;
+
+    unsigned char count = 0;
+    for (board_pos check_y = 0; check_y < 3; ++check_y)
+      for (board_pos check_x = 0; check_x < 3; ++check_x)
+      {
+        board_pos target_x = quad_x + check_x;
+        board_pos target_y = quad_y + check_y;
+
+        bool has_value = board_has_value (board, target_x, target_y);
+
+        if (! has_value && board_is_marked (board, target_x, target_y, value))
+        {
+          ++result.count;
+          if (result.count == 1)
+            result.unique = BOARD_ELEM (board, target_x, target_y);
+          else
+            result.unique = NULL;
+        }
+        else if (
+                  has_value &&
+                  board_get_value (board, target_x, target_y) == value
+        )
+        {
+          result.count = 1;
+          result.is_set = true;
+          return result;
+        }
+
+      }
+
+    return result;
+  }
+  else ERROR("Invalid parameters to function board_count_quad_potentials()");
+}
+
+
+bool
+board_update_marks_by_quad (
+  struct board *board,
+  board_pos x,
+  board_pos y
+)
+{
+  if (is_in_bounds (x, y))
+  {
+    bool changed = false;
+
+    for (element_value value = 0; value < 9; ++value)
+    {
+      struct count_result result =
+        board_count_quad_potentials (
+          board,
+          x,
+          y,
+          value
+        );
+
+      /* No need to check populated values */
+      if (result.is_set)
+        continue;
+
+      /* If there is only one element that can hold a value, mark it */
+      if (result.unique != NULL && result.unique->potential != (1 << value))
+      {
+        changed |= true;
+        result.unique->potential = 1 << value;
+        result.unique->complexity = 1;
+        board->complexity = 1;
+      }
+    }
+    return changed;
+  }
+  else ERROR("Invalid parameters to function board_update_marks_by_quad()");
+}
+
+
+bool
+board_update_marks_by_excl (
+  struct board *board,
+  board_pos x,
+  board_pos y
+)
+{
+  if (is_in_bounds (x, y))
+  {
+    bool changed = false;
+
+    struct board_element *elem = BOARD_ELEM (board, x, y);
+    unsigned short potential = elem->potential;
+    unsigned char value = 0;
+
+    /* Invert bit field for element removal */
+    elem->potential ^= 0x1FF;
+
+    while (potential != 0)
+    {
+      if ((potential & 1) == 1)
+      {
+        /* If setting value would make another quad unsolvable, un-flip bit */
+        if (! board_can_quad_set_value (board, x, y, value))
+        {
+          changed |= true;
+          elem->potential |= 1 << value;
+        }
+      }
+
+      ++value;
+      potential >>= 1;
+    }
+
+    /* Revert bit field inversion */
+    elem->potential ^= 0x1FF;
+    return changed;
+  }
+  else ERROR("Invalid parameters to function board_update_marks_by_excl()");
+}
+
+
 void
 board_update_all_marks (struct board *board)
 {
@@ -273,6 +513,24 @@ board_update_all_marks (struct board *board)
     for (board_pos x = 0; x < 9; ++x)
       if (! board_has_value (board, x, y))
         board_update_marks (board, x, y);
+
+  bool changed;
+  do
+  {
+    changed = false;
+
+    /* Update marks by exclusion analysis */
+    for (board_pos y = 0; y < 9; ++y)
+      for (board_pos x = 0; x < 9; ++x)
+        if (! board_has_value (board, x, y))
+          changed |= board_update_marks_by_excl (board, x, y);
+
+    /* Update marks by quad potential analysis */
+    for (board_pos y = 0; y < 9; y += 3)
+      for (board_pos x = 0; x < 9; x += 3)
+        changed |= board_update_marks_by_quad (board, x, y);
+
+  } while (changed);
 }
 
 
@@ -298,6 +556,24 @@ board_place (
         if (unmark_y != y && ! board_has_value (board, x, unmark_y))
           board_unmark (board, x, unmark_y, value);
 
+      /* Update quad */
+      board_pos quad_x = TO_QUAD (x);
+      board_pos quad_y = TO_QUAD (y);
+
+      for (board_pos unmark_y = 0; unmark_y < 3; ++unmark_y)
+        for (board_pos unmark_x = 0; unmark_x < 3; ++unmark_x)
+        {
+          board_pos target_x = quad_x + unmark_x;
+          board_pos target_y = quad_y + unmark_y;
+
+          /* Unmark value for all unset elements in quad */
+          if (
+              (target_x != x || target_y != y) &&
+              !board_has_value (board, target_x, target_y)
+          )
+            board_unmark (board, target_x, target_y, value);
+        }
+
       /* Set value */
       board_set (board, x, y, value); 
 
@@ -315,6 +591,8 @@ board_place (
 void
 board_refresh_complexity (struct board *board)
 {
+  board_update_all_marks (board);
+
   board->complexity = 10;
   for (board_pos y = 0; y < 9; ++y)
     for (board_pos x = 0; x < 9; ++x)
