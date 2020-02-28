@@ -47,6 +47,13 @@ An optimization directive has been included in `board.c` to allow for the near
 complete removal of boundary checks and error conditions. To enable this
 optimization, simply add `-DOPTIMIZE` to your compiler flags.
 
+## Live status output
+If you would like to get a live status output of speculative value placement,
+add the `-DPRINT_STATUS=[mask]` to your compiler flags. The mask specifies the
+bitmask to be applied when determining after how many iterations to print a
+board to the output. For example, `-DPRINT_STATUS=0xFFF` should print a board
+every 4096th (0x1000) call to the simplification algorithm.
+
 ## TODO
 
 * Optimizations
