@@ -300,10 +300,38 @@ board_place (
 
       /* Set value */
       board_set (board, x, y, value); 
+
+      /* Update board complexity */
+      board_refresh_complexity (board);
       
       return true;
     }
     else return false;
   }
   else ERROR("Invalid parameters to function board_place()");
+}
+
+
+void
+board_refresh_complexity (struct board *board)
+{
+  board->complexity = 10;
+  for (board_pos y = 0; y < 9; ++y)
+    for (board_pos x = 0; x < 9; ++x)
+      if (! board_has_value (board, x, y))
+      {
+        struct board_element *elem = BOARD_ELEM (board, x, y);
+        if (elem->complexity < board->complexity)
+        {
+          board->complexity = elem->complexity;
+
+          /* Short-circuit function on comlpexity=1, since it can't go lower */
+          if (board->complexity == 1)
+            return;
+        }
+      }
+
+  /* If there are no complex board elements, board is solved */
+  if (board->complexity == 10)
+    board->complexity = 0;
 }

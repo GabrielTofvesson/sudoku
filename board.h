@@ -184,3 +184,11 @@ board_place (
   board_pos y,
   element_value value
 );
+
+
+/**
+ * Recomputes board complexity by searching all elements on board for the
+ * lowest complexity
+ */
+void
+board_refresh_complexity (struct board *board);
