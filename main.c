@@ -17,7 +17,6 @@
 #define CLEAR         "\033[2J"
 
 
-
 /**
  * How many boards to allocate by default for board spec
  * Average depth for highly complex boards is between 10 and 12
@@ -65,7 +64,14 @@ tables_ensure_depth (struct boards_table *board_spec, unsigned long long depth)
 }
 
 bool
-simplify (struct boards_table *board_spec, unsigned long long depth);
+simplify (
+  struct boards_table *board_spec,
+  unsigned long long depth
+#ifdef PRINT_STATUS
+  ,
+  unsigned long long *counter
+#endif
+);
 
 
 struct board_file
@@ -176,6 +182,16 @@ ansi_clear_screen ()
 }
 
 
+void
+ansi_cursor_show (bool show)
+{
+  if (show)
+    fputs("\e[?25h", stdout);
+  else
+    fputs("\e[?25l", stdout);
+}
+
+
 static void
 print_board (const struct board *board, const struct board *compare, unsigned whence_x, unsigned whence_y)
 {
@@ -251,8 +267,27 @@ first_potential_value (struct board_element *element, struct board *board, bool 
  * Reduce away all elements on board with complexity=1 until none remain
  */
 bool
-simplify (struct boards_table *board_specs, unsigned long long depth)
+simplify (
+  struct boards_table *board_specs,
+  unsigned long long depth
+#ifdef PRINT_STATUS
+  ,
+  unsigned long long *counter
+#endif
+)
 {
+#ifdef PRINT_STATUS
+  if (((*counter) & PRINT_STATUS) == 0) {
+  ansi_set_cursor (0, 18);
+  printf ("Reducing... (%lx)", *counter);
+  }
+
+  if (((*counter) & PRINT_STATUS) == 0)
+    print_board (board_specs->board_specs[depth], board_specs->board_specs[0], 21, 0);
+
+  *counter += 1;
+#endif
+
   /* Get current table */
   struct board *board = board_specs->board_specs[depth];
 
@@ -307,7 +342,15 @@ simplify (struct boards_table *board_specs, unsigned long long depth)
                 continue;
 
               /* Found solution */
-              if (simplify (board_specs, depth + 1) && board_spec->complexity == 0)
+              if (
+                  simplify (
+                    board_specs,
+                    depth + 1
+#ifdef PRINT_STATUS
+                    ,
+                    counter
+#endif
+                  ) && board_spec->complexity == 0)
               {
                 board_copy (board_spec, board);
                 x = 9;
@@ -330,6 +373,8 @@ main (int argc, char **argv, char **env)
   struct board_file file = load_board_file (argv[1]);
   if (file.fd == -1 || file.data == NULL)
     return -1;
+
+  ansi_cursor_show (false);
 
   /* Allocate board */
   struct board original;
@@ -355,16 +400,29 @@ main (int argc, char **argv, char **env)
   if (! board_is_valid (root_board))
   {
     puts ("Supplied board is not valid!");
+
+    ansi_cursor_show (true);
+    
     return 1;
   }
 
   ansi_set_cursor (0, 18);
   puts("Reducing...");
 
+
   /* Profiler start time */
   clock_t start_clk = clock ();
+
+#ifdef PRINT_STATUS
+  unsigned long long counter = 0;
   
+  simplify (&boards, 0, &counter);
+
+#else
+
   simplify (&boards, 0);
+
+#endif
 
   /* Profiler end time */
   clock_t end_clk = clock ();
@@ -373,6 +431,8 @@ main (int argc, char **argv, char **env)
  
   ansi_set_cursor (0, 18);
   printf ("Simplification took %Lf seconds\n", ((long double)(end_clk - start_clk))/CLOCKS_PER_SEC);
+
+  ansi_cursor_show (true);
 
   return 0;
 }
