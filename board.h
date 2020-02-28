@@ -16,13 +16,20 @@ typedef unsigned char element_value;
 
 /**
  * Simple definition of a board element. Vaild values range: 0-8
+ * Complexity describes how many possible values would be valid for an instance
+ * of a board element. For example, if it could be either 1 or 5, it would have
+ * a complexity of 2. If it could hold 4, 5 or 8, it would have a complexity
+ * of 3
  */
 struct board_element {
   bool has_value : 1;                 /* Whether element has a decided value */
 
   union {
-    element_value  value     : 4;     /* Value of element */
-    unsigned short potential : 9;     /* Bitfield of possible values */
+    element_value    value      : 4;  /* Value of element */
+    struct {
+      unsigned short potential  : 9;  /* Bitfield of possible values */
+      unsigned char  complexity : 4;  /* Complexity tracker */
+    };
   };
 };
 

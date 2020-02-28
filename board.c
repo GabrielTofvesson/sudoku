@@ -47,7 +47,7 @@ void
 board_init (struct board *board)
 {
   memset (board, 0, sizeof board->elements);
-  board->complexity = 0;
+  board->complexity = 9;
 }
 
 
@@ -80,7 +80,11 @@ board_mark (
   if (is_in_bounds (x, y) && is_valid_value (value))
   {
     struct board_element *elem = BOARD_ELEM (board, x, y);
-    elem->potential |= 1 << value;
+    if (! board_is_marked (board, x, y, value))
+    {
+      elem->potential |= 1 << value;
+      ++(elem->complexity);
+    }
   }
   else ERROR("Invalid parameters to function board_mark()");
 }
@@ -98,8 +102,14 @@ board_unmark (
   {
     struct board_element *elem = BOARD_ELEM (board, x, y);
 
-    /* Shift bit to correct place and then invert first 9 bits */
-    elem->potential &= (1 << value) ^ 0x1FF;
+    if (board_is_marked (board, x, y, value))
+    {
+      /* Shift bit to correct place and then invert first 9 bits */
+      elem->potential &= (1 << value) ^ 0x1FF;
+      --(elem->complexity);
+      if (elem->complexity < board->complexity)
+        board->complexity = elem->complexity;
+    }
   }
   else ERROR("Invalid parameters to function board_unmark()");
 }
@@ -224,19 +234,33 @@ board_update_marks (
 
     /* Mark all values as impossible */
     elem->potential = 0;
+    elem->complexity = 0;
 
     /* Check x-axis */
     for (board_pos check_x = 0; check_x < 9; ++check_x)
       if (check_x != x && board_has_value (board, check_x, y))
-        elem->potential |= 1 << BOARD_ELEM (board, check_x, y)->value;
+        elem->potential |= (1 << BOARD_ELEM (board, check_x, y)->value);
 
     /* Check y-axis */
     for (board_pos check_y = 0; check_y < 9; ++check_y)
       if (check_y != y && board_has_value (board, x, check_y))
-        elem->potential |= 1 << BOARD_ELEM (board, x, check_y)->value;
+        elem->potential |= (1 << BOARD_ELEM (board, x, check_y)->value);
 
     /* Invert matches */
     elem->potential ^= 0x1FF;
+
+    /* Count marked bits */
+    unsigned char potential = elem->potential;
+    while (potential != 0)
+    {
+      if (potential & 1 == 1)
+        ++(elem->complexity);
+      potential >>= 1;
+    }
+
+    /* Store complexity if element is the simplest */
+    if (elem->complexity < board->complexity)
+      board->complexity = elem->complexity;
   }
   else ERROR("Invalid parameters to function board_update_marks()");
 }
