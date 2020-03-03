@@ -513,6 +513,123 @@ board_update_marks_by_excl (
   else ERROR("Invalid parameters to function board_update_marks_by_excl()");
 }
 
+static bool
+element_shares_value (struct board *board, board_pos x, board_pos y, element_value value)
+{
+  struct board_element *elem = BOARD_ELEM (board, x, y);
+  return (elem->has_value && elem->value == value) || (! elem->has_value && (elem->potential & (1 << value) != 0));
+}
+
+static inline bool
+field_is_potential (unsigned short field, element_value value)
+{
+  return (field >> (value * 2)) & 3 < 2;
+}
+
+static inline void
+field_invalidate (unsigned short *field, element_value value)
+{
+  *field |= 2 << (value * 2);
+}
+
+static inline void
+field_increment (unsigned short *field, element_value value)
+{
+  if (field_is_potential (*field, value))
+    *field += (1 << (value * 2));
+}
+
+static void
+field_populate_values(struct board *board, board_pos x, board_pos y, unsigned short *field)
+{
+  struct board_element *elem = BOARD_ELEM (board, x, y);
+  if (elem->has_value)
+  {
+    field_invalidate (field, elem->value);
+  }
+  else
+  {
+    unsigned short potential = elem->potential;
+    element_value value = 0;
+    while (potential != 0)
+    {
+      if (potential & 1 == 1)
+        field_increment (field, value);
+
+      potential >>= 1;
+      ++value;
+    }
+  }
+}
+
+static bool
+board_update_marks_by_rows (struct board *board)
+{
+  bool changed = false;
+
+  for (board_pos y = 0; y < 9; ++y)
+  {
+    unsigned short field = 0;
+    for (board_pos x = 0; x < 9; ++x)
+      field_populate_values (board, x, y, &field);
+
+    element_value value = 0;
+    while (field != 0)
+    {
+      if (field & 3 == 1)
+      {
+        for (board_pos x = 0; x < 9; ++x)
+          if (element_shares_value (board, x, y, value))
+          {
+            struct board_element *elem = BOARD_ELEM (board, x ,y);
+            elem->complexity = 1;
+            board->complexity = 1;
+            changed |= elem->potential != (elem->potential = (1 << value));
+
+            abort();
+          }
+      }
+
+      field >>= 2;
+      ++value;
+    }
+  }
+  return changed;
+}
+
+static bool
+board_update_marks_by_cols (struct board *board)
+{
+  bool changed = false;
+
+  for (board_pos x = 0; x < 9; ++x)
+  {
+    unsigned short field = 0;
+    for (board_pos y = 0; y < 9; ++y)
+      field_populate_values (board, x, y, &field);
+
+    element_value value = 0;
+    while (field != 0)
+    {
+      if (field & 3 == 1)
+      {
+        for (board_pos y = 0; y < 9; ++y)
+          if (element_shares_value (board, x, y, value))
+          {
+            struct board_element *elem = BOARD_ELEM (board, x ,y);
+            elem->complexity = 1;
+            board->complexity = 1;
+            changed |= elem->potential != (elem->potential = (1 << value));
+          }
+      }
+
+      field >>= 2;
+      ++value;
+    }
+  }
+  return changed;
+}
+
 
 void
 board_update_all_marks (struct board *board)
@@ -528,15 +645,18 @@ board_update_all_marks (struct board *board)
     changed = false;
 
     /* Update marks by exclusion analysis */
-    for (board_pos y = 0; y < 9; ++y)
-      for (board_pos x = 0; x < 9; ++x)
-        if (! board_has_value (board, x, y))
-          changed |= board_update_marks_by_excl (board, x, y);
+//  for (board_pos y = 0; y < 9; ++y)
+//    for (board_pos x = 0; x < 9; ++x)
+//      if (! board_has_value (board, x, y))
+//        changed |= board_update_marks_by_excl (board, x, y);
 
-    /* Update marks by quad potential analysis */
-    for (board_pos y = 0; y < 9; y += 3)
-      for (board_pos x = 0; x < 9; x += 3)
-        changed |= board_update_marks_by_quad (board, x, y);
+//  /* Update marks by quad potential analysis */
+//  for (board_pos y = 0; y < 9; y += 3)
+//    for (board_pos x = 0; x < 9; x += 3)
+//      changed |= board_update_marks_by_quad (board, x, y);
+
+    changed |= board_update_marks_by_rows (board);
+    changed |= board_update_marks_by_cols (board);
 
   } while (changed);
 }
