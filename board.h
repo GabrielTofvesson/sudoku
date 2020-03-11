@@ -12,6 +12,22 @@
 #define BOARD_ELEM(board_ptr, x, y) (&(board_ptr)->elements[((y) * 9) + (x)])
 
 /**
+ * Get a `struct metadata`-entry from a specified location on the quadrand grid
+ */
+#define BOARD_QUAD(board_ptr, qx, qy) (&(board_ptr)->meta_quad[(qy) * 3 + (qx)])
+
+/**
+ * Get a `struct metadata`-entry from a specified row value
+ */
+#define BOARD_ROW(board_ptr, y) (&(board_ptr)->meta_row[(y)])
+
+/**
+ * Get a `struct metadata`-entry from a specified column value
+ */
+#define BOARD_COL(board_ptr, x) (&(board_ptr)->meta_col[(x)])
+
+
+/**
  * Convert any valid board position to a quadrant base position (lowest index)
  */
 #define TO_QUAD(pos) (((pos) / 3) * 3)
@@ -39,21 +55,101 @@ struct board_element {
 };
 
 /**
+ * Board region metadata
+ */
+struct metadata {
+  unsigned short marked : 9;          /* Which values have been marked */
+  struct {                            /* Unique potentials */
+    unsigned char count : 2;          /* Whether or not a potential is unique */
+    unsigned char index : 3;          /* Metadata index. Context-specific */
+  } unique[9];
+};
+
+/**
  * Board structure representing the state of a Sudoku game
- * Complexity describes 
+ * Complexity describes how many possible values an element can legally have
  *
  * TODO: Replace elements with packed structure
  */
 struct board {
+  /* Immediate data*/
   struct board_element elements[81];  /* Game board */
-  unsigned char complexity;           /* Complexity of simplest element */
+  unsigned char complexity : 3;       /* Complexity of simplest element */
+
+  /* Metadata */
+  struct metadata meta_quad [9];      /* Quadrant metadata */
+  struct metadata meta_row  [9];      /* Row metadata */
+  struct metadata meta_col  [9];      /* Column metadata */
 };
 
+
 /**
- * Initialize a board to a blank state with 0 complexity
+ * Initialize metadata to a blank state
+ */
+void
+meta_init (struct metadata *meta);
+
+
+/**
+ * Initialize a board to a blank state with maximum complexity
  */
 void
 board_init (struct board *board);
+
+
+/**
+ * Check if a metadata structure has marked a given value
+ */
+bool
+meta_has_value (const struct metadata *meta, element_value value);
+
+
+/**
+ * Set value as marked for the given metadata structure
+ */
+void
+meta_set_value (struct metadata *meta, element_value value);
+
+
+/**
+ * Clear all marked values for the given metadata structure
+ */
+void
+meta_clear_values (struct metadata *meta);
+
+
+/**
+ * Refresh metadata for a given quadrant
+ */
+void
+board_meta_quad_refresh (struct board *board, board_pos qx, board_pos qy);
+
+
+/**
+ * Refresh metadata for a given row
+ */
+void
+board_meta_row_refresh (struct board *board, board_pos y);
+
+
+/**
+ * Refresh metadata for a given column
+ */
+void
+board_meta_col_refresh (struct board *board, board_pos x);
+
+
+/**
+ * Check if a value can be set at a given position on the board based on
+ * analysing the metadata structures of `board`
+ */
+bool
+board_meta_can_set (
+  const struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+);
 
 
 /**
@@ -129,19 +225,6 @@ board_get_value (
 bool
 board_is_marked (
   struct board *board,
-  board_pos x,
-  board_pos y,
-  element_value value
-);
-
-
-/**
- * Checks if placing the given value at the given position on the board would
- * leave the board in a valid state
- */
-bool
-board_can_place_value (
-  const struct board *board,
   board_pos x,
   board_pos y,
   element_value value

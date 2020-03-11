@@ -21,6 +21,20 @@
 
 
 /**
+ * Raises an error if the given condition is not met
+ * The error will be the given reason
+ */
+#ifdef OPTIMIZE
+#define ASSERT(cond, reason)
+#else
+#define ASSERT(cond, reason)              \
+{                                         \
+  if (! cond) ERROR ((reason));           \
+}
+#endif
+
+
+/**
  * Check if a given xy-pair is in bounds of a Sudoku board
  */
 static inline bool
@@ -52,10 +66,138 @@ is_valid_value (element_value value)
 
 
 void
+meta_init (struct metadata *meta)
+{
+  memset (meta, 0, sizeof (struct metadata));
+}
+
+
+void
 board_init (struct board *board)
 {
   memset (board, 0, sizeof board->elements);
   board->complexity = 9;
+  
+  for (unsigned i = 0; i < 9; ++i)
+  {
+    meta_init (&board->meta_quad[i]);
+    meta_init (&board->meta_row[i]);
+    meta_init (&board->meta_col[i]);
+  }
+}
+
+
+bool
+meta_has_value (const struct metadata *meta, element_value value)
+{
+  return ((meta->marked >> value) & 1) == 1;
+}
+
+
+void
+meta_set_value (struct metadata *meta, element_value value)
+{
+  meta->marked |= 1 << value;
+}
+
+
+void
+meta_clear_values (struct metadata *meta)
+{
+  meta->marked = 0;
+}
+
+
+static inline void
+meta_mark (struct metadata *meta, element_value value, unsigned index)
+{
+  meta_set_value (meta, value);
+
+  unsigned char count = meta->unique[value].count;
+  if (count == 0)
+  {
+    meta->unique[value].count = 1;
+    meta->unique[value].index = index;
+  }
+  else
+  {
+    meta->unique[value].count = 2;
+  }
+}
+
+
+void
+board_meta_quad_refresh (struct board *board, board_pos qx, board_pos qy)
+{
+  struct metadata *meta = BOARD_QUAD (board, qx, qy);
+  board_pos quad_base_x = qx * 3;
+  board_pos quad_base_y = qy * 3;
+
+  meta_clear_values (meta);
+
+  for (board_pos off_y = 0; off_y < 3; ++off_y)
+    for (board_pos off_x = 0; off_x < 3; ++off_x)
+    {
+      struct board_element *elem =
+        BOARD_ELEM (board, quad_base_x + off_x, quad_base_y + off_y);
+
+      if (elem->has_value)
+        meta_mark (meta, elem->value, (off_y * 3) + off_x);
+    }
+}
+
+
+void
+board_meta_row_refresh (struct board *board, board_pos y)
+{
+  struct metadata *meta = BOARD_ROW (board, y);
+  
+  meta_clear_values (meta);
+
+  for (board_pos x = 0; x < 9; ++x)
+  {
+    struct board_element *elem = BOARD_ELEM (board, x, y);
+
+    if (elem->has_value)
+      meta_mark (meta, elem->value, x);
+  }
+}
+
+
+void
+board_meta_col_refresh (struct board *board, board_pos x)
+{
+  struct metadata *meta = BOARD_COL (board, x);
+  
+  meta_clear_values (meta);
+
+  for (board_pos y = 0; y < 9; ++y)
+  {
+    struct board_element *elem = BOARD_ELEM (board, x, y);
+
+    if (elem->has_value)
+      meta_mark (meta, elem->value, y);
+  }
+}
+
+
+bool
+board_meta_can_set (
+  const struct board *board,
+  board_pos x,
+  board_pos y,
+  element_value value
+)
+{
+  if (is_in_bounds (x, y) && is_valid_value (value))
+  {
+    return ! (
+      meta_has_value (BOARD_ROW (board, y), value) ||
+      meta_has_value (BOARD_COL (board, x), value) ||
+      meta_has_value (BOARD_QUAD (board, TO_QUAD (x), TO_QUAD (y)), value)
+    );
+  }
+  else ERROR("Invalid parameters to function board_meta_can_set()");
 }
 
 
@@ -69,6 +211,11 @@ board_set (
 {
   if (is_in_bounds (x, y) && is_valid_value (value))
   {
+    ASSERT (
+      board_meta_can_set (board, x, y, value),
+      "Attempt to set impossible value on board"
+    );
+
     struct board_element *elem = BOARD_ELEM (board, x, y);
     elem->has_value = true;
     elem->value = value;
@@ -87,6 +234,11 @@ board_mark (
 {
   if (is_in_bounds (x, y) && is_valid_value (value))
   {
+    ASSERT (
+      ! board_has_value (board, x, y),
+      "Attempt to mark element with value"
+    );
+
     struct board_element *elem = BOARD_ELEM (board, x, y);
     if (! board_is_marked (board, x, y, value))
     {
@@ -108,15 +260,18 @@ board_unmark (
 {
   if (is_in_bounds (x, y) && is_valid_value (value))
   {
+    ASSERT (
+      ! board_has_value (board, x, y),
+      "Attempt to mark element with value"
+    );
+
     struct board_element *elem = BOARD_ELEM (board, x, y);
 
     if (board_is_marked (board, x, y, value))
     {
       /* Shift bit to correct place and then invert first 9 bits */
-      elem->potential &= (1 << value) ^ 0x1FF;
+      elem->potential ^= (1 << value);
       --(elem->complexity);
-      if (elem->complexity < board->complexity)
-        board->complexity = elem->complexity;
     }
   }
   else ERROR("Invalid parameters to function board_unmark()");
@@ -170,54 +325,13 @@ board_is_marked (
 
 
 bool
-board_can_place_value (
-  const struct board *board,
-  board_pos x,
-  board_pos y,
-  element_value value
-)
-{
-  if (is_in_bounds (x, y) && is_valid_value (value))
-  {
-    /* Check for x-axis */
-    for (board_pos compare_x = 0; compare_x < 9; ++compare_x)
-    {
-      if (compare_x == x)
-        continue;
-      else if (
-                board_has_value (board, compare_x, y) &&
-                board_get_value (board, compare_x, y) == value
-              )
-        return false;
-    }
-
-    /* Check for y-axis */
-    for (board_pos compare_y = 0; compare_y < 9; ++compare_y)
-    {
-      if (compare_y == y)
-        continue;
-      else if (
-                board_has_value (board, x, compare_y) &&
-                board_get_value (board, x, compare_y) == value
-      )
-        return false;
-    }
-    
-    /* No matches */
-    return true;
-  }
-  else ERROR("Invalid parameters to function board_can_place_value()");
-}
-
-
-bool
 board_is_valid (struct board *board)
 {
   for (board_pos y = 0; y < 9; ++y)
     for (board_pos x = 0; x < 9; ++x)
       if (
             board_has_value (board, x, y) &&
-            ! board_can_place_value (
+            ! board_meta_can_set (
                 board,
                 x,
                 y,
@@ -245,14 +359,18 @@ board_update_marks (
     elem->complexity = 0;
 
     /* Check x-axis */
-    for (board_pos check_x = 0; check_x < 9; ++check_x)
-      if (check_x != x && board_has_value (board, check_x, y))
-        elem->potential |= (1 << BOARD_ELEM (board, check_x, y)->value);
+    elem->potential |= BOARD_QUAD (board, TO_QUAD (x), TO_QUAD (y))->marked;
+    elem->potential |= BOARD_ROW (board, y)->marked;
+    elem->potential |= BOARD_COL (board, x)->marked;
 
-    /* Check y-axis */
-    for (board_pos check_y = 0; check_y < 9; ++check_y)
-      if (check_y != y && board_has_value (board, x, check_y))
-        elem->potential |= (1 << BOARD_ELEM (board, x, check_y)->value);
+//  for (board_pos check_x = 0; check_x < 9; ++check_x)
+//    if (check_x != x && board_has_value (board, check_x, y))
+//      elem->potential |= (1 << BOARD_ELEM (board, check_x, y)->value);
+
+//  /* Check y-axis */
+//  for (board_pos check_y = 0; check_y < 9; ++check_y)
+//    if (check_y != y && board_has_value (board, x, check_y))
+//      elem->potential |= (1 << BOARD_ELEM (board, x, check_y)->value);
 
     /* Invert matches */
     elem->potential ^= 0x1FF;
@@ -265,10 +383,6 @@ board_update_marks (
         ++(elem->complexity);
       potential >>= 1;
     }
-
-    /* Store complexity if element is the simplest */
-    if (elem->complexity < board->complexity)
-      board->complexity = elem->complexity;
   }
   else ERROR("Invalid parameters to function board_update_marks()");
 }
@@ -463,7 +577,6 @@ board_update_marks_by_quad (
         changed |= true;
         result.unique->potential = 1 << value;
         result.unique->complexity = 1;
-        board->complexity = 1;
       }
     }
     return changed;
@@ -583,10 +696,7 @@ board_update_marks_by_rows (struct board *board)
           {
             struct board_element *elem = BOARD_ELEM (board, x ,y);
             elem->complexity = 1;
-            board->complexity = 1;
             changed |= elem->potential != (elem->potential = (1 << value));
-
-            abort();
           }
       }
 
@@ -618,7 +728,6 @@ board_update_marks_by_cols (struct board *board)
           {
             struct board_element *elem = BOARD_ELEM (board, x ,y);
             elem->complexity = 1;
-            board->complexity = 1;
             changed |= elem->potential != (elem->potential = (1 << value));
           }
       }
@@ -639,21 +748,22 @@ board_update_all_marks (struct board *board)
       if (! board_has_value (board, x, y))
         board_update_marks (board, x, y);
 
+  return;
   bool changed;
   do
   {
     changed = false;
 
     /* Update marks by exclusion analysis */
-//  for (board_pos y = 0; y < 9; ++y)
-//    for (board_pos x = 0; x < 9; ++x)
-//      if (! board_has_value (board, x, y))
-//        changed |= board_update_marks_by_excl (board, x, y);
+    for (board_pos y = 0; y < 9; ++y)
+      for (board_pos x = 0; x < 9; ++x)
+        if (! board_has_value (board, x, y))
+          changed |= board_update_marks_by_excl (board, x, y);
 
-//  /* Update marks by quad potential analysis */
-//  for (board_pos y = 0; y < 9; y += 3)
-//    for (board_pos x = 0; x < 9; x += 3)
-//      changed |= board_update_marks_by_quad (board, x, y);
+    /* Update marks by quad potential analysis */
+    for (board_pos y = 0; y < 9; y += 3)
+      for (board_pos x = 0; x < 9; x += 3)
+        changed |= board_update_marks_by_quad (board, x, y);
 
     changed |= board_update_marks_by_rows (board);
     changed |= board_update_marks_by_cols (board);
@@ -672,7 +782,7 @@ board_place (
 {
   if (is_in_bounds (x, y) && is_valid_value (value))
   {
-    if (board_can_place_value (board, x, y, value))
+    if (board_meta_can_set (board, x, y, value))
     {
       /* Unmark x-axis */
       for (board_pos unmark_x = 0; unmark_x < 9; ++unmark_x)
@@ -702,7 +812,12 @@ board_place (
             board_unmark (board, target_x, target_y, value);
         }
 
-        /* Set value */
+      /* Update metadata */
+      meta_set_value (BOARD_QUAD (board, quad_x, quad_y), value);
+      meta_set_value (BOARD_ROW  (board, y), value);
+      meta_set_value (BOARD_COL  (board, x), value);
+
+      /* Set value */
       board_set (board, x, y, value); 
 
       /* Update board complexity */
@@ -726,7 +841,7 @@ board_place_speculative (
   if (is_in_bounds (x, y) && is_valid_value (value))
   {
     /* Ensure value can be placed*/
-    if (board_can_place_value (board, x, y, value))
+    if (board_meta_can_set (board, x, y, value))
     {
       /* Create duplicate and place value */
       board_copy (board, board_duplicate);

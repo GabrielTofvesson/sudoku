@@ -292,9 +292,14 @@ simplify (
   struct board *board = board_specs->board_specs[depth];
 
   bool error;
+
+  bool placed = false;
+  unsigned count = 0;
+
   /* Reduce using low-complexity computation */
   while (board->complexity == 1)
   {
+    placed = false;
     for (board_pos y = 0; y < 9; ++y)
       for (board_pos x = 0; x < 9; ++x)
         if (! board_has_value (board, x, y))
@@ -305,9 +310,19 @@ simplify (
             element_value value = first_potential_value (elem, board, &error);
             if (error) return false;
 
-            board_place (board, x, y, value);
+            placed = true;
+            ++count;
+
+            if (! board_place (board, x, y, value))
+              break;
           }
         }
+    if (! placed)
+    {
+      print_board (board_specs->board_specs[depth], board_specs->board_specs[0], 21, 0);
+      printf ("Count: %u\n", count);
+      abort ();
+    }
   }
 
   /* Attempt to reduce with speculative placement */
