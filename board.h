@@ -14,7 +14,7 @@
 /**
  * Get a `struct metadata`-entry from a specified location on the quadrand grid
  */
-#define BOARD_QUAD(board_ptr, qx, qy) (&(board_ptr)->meta_quad[(qy) * 3 + (qx)])
+#define BOARD_QUAD(board_ptr, x, y) (&(board_ptr)->meta_quad[TO_QUAD ((y)) + ((x) / 3)])
 
 /**
  * Get a `struct metadata`-entry from a specified row value
@@ -74,7 +74,7 @@ struct metadata {
 struct board {
   /* Immediate data*/
   struct board_element elements[81];  /* Game board */
-  unsigned char complexity : 3;       /* Complexity of simplest element */
+  unsigned char complexity : 4;       /* Complexity of simplest element */
 
   /* Metadata */
   struct metadata meta_quad [9];      /* Quadrant metadata */
@@ -224,7 +224,7 @@ board_get_value (
  */
 bool
 board_is_marked (
-  struct board *board,
+  const struct board *board,
   board_pos x,
   board_pos y,
   element_value value

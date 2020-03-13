@@ -30,6 +30,14 @@
 #define DEPTH_INCREMENT 3
 
 
+
+struct args {
+  bool valid;
+  unsigned verbosity : 2;
+  char *file_name;
+};
+
+
 struct boards_table {
   struct board **board_specs;
   unsigned long long max_depth;
@@ -66,11 +74,9 @@ tables_ensure_depth (struct boards_table *board_spec, unsigned long long depth)
 bool
 simplify (
   struct boards_table *board_spec,
-  unsigned long long depth
-#ifdef PRINT_STATUS
-  ,
-  unsigned long long *counter
-#endif
+  unsigned long long depth,
+  unsigned long long *counter,
+  unsigned verbosity
 );
 
 
@@ -163,7 +169,7 @@ copy_to_board (struct board_file file, struct board *board)
       board_pos y = i / 10;
 
       if (data[i - 1] != ' ')
-        board_set (board, x - 1, y, data[i - 1] - '0' - 1);
+        board_place (board, x - 1, y, data[i - 1] - '0' - 1);
     }
 }
 
@@ -189,6 +195,50 @@ ansi_cursor_show (bool show)
     fputs("\e[?25h", stdout);
   else
     fputs("\e[?25l", stdout);
+}
+
+static void
+print_board_verbose (
+  const struct board *board,
+  unsigned whence_x,
+  unsigned whence_y
+)
+{
+  for (board_pos y = 0; y < 9; ++y)
+  {
+    for (board_pos x = 0; x < 9; ++x)
+    {
+      for (element_value vy = 0; vy < 3; ++vy)
+        for (element_value vx = 0; vx < 3; ++vx)
+        {
+          element_value check = vx + (vy * 3);
+
+          ansi_set_cursor (whence_x + (x * 4) + vx, whence_y + (y * 4) + vy);
+          
+          if (board_has_value (board, x, y))
+            printf ("%u", board_get_value (board, x, y) + 1);
+          else if (board_is_marked (board, x, y, check))
+            printf (COLOUR_RED "%u" COLOUR_RESET, check + 1);
+          else
+            fputs (" ", stdout);
+
+          if (vx == 2 && x != 8)
+            fputs ("|", stdout);
+        }
+    }
+    
+    ansi_set_cursor (0, (y * 4) + 3);
+    if (y != 8)
+    {
+      for (unsigned i = 0; i < (4 * 9) - 1; ++i)
+        if ((i + 1) % 4 == 0)
+          fputs ("+", stdout);
+        else
+          fputs ("-", stdout);
+    }
+  }
+
+  fflush (stdout);
 }
 
 
@@ -252,7 +302,7 @@ first_potential_value (struct board_element *element, struct board *board, bool 
   element_value value = 0;
   while (potential != 0)
   {
-    if (potential & 1 == 1)
+    if ((potential & 1) == 1)
       return value;
     ++value;
     potential >>= 1;
@@ -269,37 +319,33 @@ first_potential_value (struct board_element *element, struct board *board, bool 
 bool
 simplify (
   struct boards_table *board_specs,
-  unsigned long long depth
-#ifdef PRINT_STATUS
-  ,
-  unsigned long long *counter
-#endif
+  unsigned long long depth,
+  unsigned long long *counter,
+  unsigned verbosity
 )
 {
-#ifdef PRINT_STATUS
-  if (((*counter) & PRINT_STATUS) == 0) {
-  ansi_set_cursor (0, 18);
-  printf ("Reducing... (%lx)", *counter);
-  }
-
-  if (((*counter) & PRINT_STATUS) == 0)
-    print_board (board_specs->board_specs[depth], board_specs->board_specs[0], 21, 0);
-
-  *counter += 1;
-#endif
-
   /* Get current table */
   struct board *board = board_specs->board_specs[depth];
 
+  if (verbosity > 0)
+  {
+    if ((*counter) & (0xFFFF >> (4 * (4 - verbosity))))
+    {
+      print_board_verbose (board, 0, 0);
+      ansi_set_cursor (0, 35);
+      printf ("Iteration: %lu", *counter);
+    }
+    *counter += 1;
+  }
+
+
   bool error;
 
-  bool placed = false;
   unsigned count = 0;
 
   /* Reduce using low-complexity computation */
   while (board->complexity == 1)
   {
-    placed = false;
     for (board_pos y = 0; y < 9; ++y)
       for (board_pos x = 0; x < 9; ++x)
         if (! board_has_value (board, x, y))
@@ -310,19 +356,21 @@ simplify (
             element_value value = first_potential_value (elem, board, &error);
             if (error) return false;
 
-            placed = true;
             ++count;
 
+            //fprintf (stderr, "Placing (%u, %u)=%u (potential=%u)\n", x, y, value, elem->potential);
+            
             if (! board_place (board, x, y, value))
-              break;
+            {
+              bool rerr = meta_has_value (BOARD_ROW (board, y), value);
+              bool cerr = meta_has_value (BOARD_COL (board, x), value);
+              bool qerr = meta_has_value (BOARD_QUAD (board, TO_QUAD (x), TO_QUAD (y)), value);
+              fprintf (stderr, "Error (%u, %u, %u)\n", rerr, cerr, qerr);
+            }
           }
         }
-    if (! placed)
-    {
-      print_board (board_specs->board_specs[depth], board_specs->board_specs[0], 21, 0);
-      printf ("Count: %u\n", count);
-      abort ();
-    }
+
+    board_refresh_complexity (board);
   }
 
   /* Attempt to reduce with speculative placement */
@@ -332,7 +380,7 @@ simplify (
       for (board_pos x = 0; x < 9; ++x)
       {
         struct board_element *elem = BOARD_ELEM (board, x, y);
-        /* Find a simplest element on the board*/
+        /* Find a simplest element on the board */
         if (
             ! board_has_value (board, x, y) &&
             elem->complexity == board->complexity
@@ -354,24 +402,27 @@ simplify (
 
               /* If speculative placement failed, try another value */
               if (board_spec == NULL)
+              {
+                board_unmark (board, x, y, value);
                 continue;
+              }
 
               /* Found solution */
               if (
                   simplify (
                     board_specs,
-                    depth + 1
-#ifdef PRINT_STATUS
-                    ,
-                    counter
-#endif
-                  ) && board_spec->complexity == 0)
+                    depth + 1,
+                    counter,
+                    verbosity
+                  ) &&
+                  board_spec->complexity == 0)
               {
                 board_copy (board_spec, board);
                 x = 9;
                 y = 9;
                 value = 9;
               }
+              else board_unmark (board, x, y, value);
             }
           }
       }
@@ -380,18 +431,66 @@ simplify (
 }
 
 
+struct args
+argparse (int argc, char **argv)
+{
+  struct args result;
+  result.file_name = NULL;
+  result.valid = true;
+  result.verbosity = 0;
+  if (argc < 2)
+  {
+    result.valid = false;
+    return result;
+  }
+
+  for (int i = 1; i < argc; ++i)
+    if (strncmp (argv[i], "-", 1) == 0)
+    {
+      if (result.verbosity != 0)
+      {
+        result.valid = false;
+        return result;
+      }
+      if (strcmp (argv[i], "-v") == 0)
+        result.verbosity = 1;
+      else if (strcmp (argv[i], "-vv") == 0)
+        result.verbosity = 2;
+      else
+      {
+        result.valid = false;
+        return result;
+      }
+    }
+    else if (result.file_name == NULL)
+      result.file_name = argv[i];
+    else
+    {
+      result.valid = false;
+      return result;
+    }
+  return result;
+}
+
+
+
 int
 main (int argc, char **argv, char **env)
 {
-  if (argc != 2) return -1;
+  struct args args = argparse (argc, argv);
+  if (! args.valid)
+  {
+    fputs ("Badly formatted arguments! Usage:\n\t./sudoku [-v[v]] {file name}\n", stderr);
+    return 1;
+  }
   
-  struct board_file file = load_board_file (argv[1]);
+  struct board_file file = load_board_file (args.file_name);
   if (file.fd == -1 || file.data == NULL)
     return -1;
 
   ansi_cursor_show (false);
 
-  /* Allocate board */
+  /* Allocate boards */
   struct board original;
 
   struct boards_table boards;
@@ -406,46 +505,51 @@ main (int argc, char **argv, char **env)
 
   close_board_file (file);
 
-  board_update_all_marks (root_board);
-  
+
+
   ansi_clear_screen ();
-
-  print_board (root_board, NULL, 0, 0);
-
+  
   if (! board_is_valid (root_board))
   {
-    puts ("Supplied board is not valid!");
+    fputs ("Supplied board is not valid!\n", stderr);
 
     ansi_cursor_show (true);
     
     return 1;
   }
+  
 
-  ansi_set_cursor (0, 18);
-  puts("Reducing...");
+  if (args.verbosity == 0)
+    puts ("Simplifying...");
 
+
+  board_refresh_complexity (root_board);
 
   /* Profiler start time */
   clock_t start_clk = clock ();
 
-#ifdef PRINT_STATUS
   unsigned long long counter = 0;
   
-  simplify (&boards, 0, &counter);
-
-#else
-
-  simplify (&boards, 0);
-
-#endif
+  simplify (&boards, 0, &counter, args.verbosity);
 
   /* Profiler end time */
   clock_t end_clk = clock ();
 
-  print_board (root_board, &original, 21, 0);
- 
-  ansi_set_cursor (0, 18);
+  ansi_clear_screen ();
+
+  if (root_board->complexity == 0)
+  {
+    print_board (&original, NULL, 0, 0);
+    print_board (root_board, &original, 21, 0);
+    ansi_set_cursor (0, 18);
+  }
+  else
+  {
+    print_board_verbose (root_board, 0, 0);
+    ansi_set_cursor (0, 36);
+  }
   printf ("Simplification took %Lf seconds\n", ((long double)(end_clk - start_clk))/CLOCKS_PER_SEC);
+
 
   ansi_cursor_show (true);
 

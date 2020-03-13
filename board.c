@@ -75,7 +75,14 @@ meta_init (struct metadata *meta)
 void
 board_init (struct board *board)
 {
-  memset (board, 0, sizeof board->elements);
+  struct board_element defval;
+  defval.has_value = false;
+  defval.potential = 0x1FF;
+  defval.complexity = 9;
+
+  for (size_t t = 0; t < (sizeof (board->elements) / sizeof (struct board_element)); ++t)
+    memcpy (&board->elements[t], &defval, sizeof (struct board_element));
+
   board->complexity = 9;
   
   for (unsigned i = 0; i < 9; ++i)
@@ -129,7 +136,7 @@ meta_mark (struct metadata *meta, element_value value, unsigned index)
 void
 board_meta_quad_refresh (struct board *board, board_pos qx, board_pos qy)
 {
-  struct metadata *meta = BOARD_QUAD (board, qx, qy);
+  struct metadata *meta = BOARD_QUAD (board, qx * 3, qy * 3);
   board_pos quad_base_x = qx * 3;
   board_pos quad_base_y = qy * 3;
 
@@ -194,7 +201,7 @@ board_meta_can_set (
     return ! (
       meta_has_value (BOARD_ROW (board, y), value) ||
       meta_has_value (BOARD_COL (board, x), value) ||
-      meta_has_value (BOARD_QUAD (board, TO_QUAD (x), TO_QUAD (y)), value)
+      meta_has_value (BOARD_QUAD (board, x, y), value)
     );
   }
   else ERROR("Invalid parameters to function board_meta_can_set()");
@@ -310,7 +317,7 @@ board_get_value (
 
 bool
 board_is_marked (
-  struct board *board,
+  const struct board *board,
   board_pos x,
   board_pos y,
   element_value value
@@ -330,13 +337,8 @@ board_is_valid (struct board *board)
   for (board_pos y = 0; y < 9; ++y)
     for (board_pos x = 0; x < 9; ++x)
       if (
-            board_has_value (board, x, y) &&
-            ! board_meta_can_set (
-                board,
-                x,
-                y,
-                BOARD_ELEM (board, x, y)->value
-              )
+            !board_has_value (board, x, y) &&
+            BOARD_ELEM (board, x, y)->potential == 0
       )
         return false;
   return true;
@@ -359,7 +361,7 @@ board_update_marks (
     elem->complexity = 0;
 
     /* Check x-axis */
-    elem->potential |= BOARD_QUAD (board, TO_QUAD (x), TO_QUAD (y))->marked;
+    elem->potential |= BOARD_QUAD (board, x, y)->marked;
     elem->potential |= BOARD_ROW (board, y)->marked;
     elem->potential |= BOARD_COL (board, x)->marked;
 
@@ -813,15 +815,16 @@ board_place (
         }
 
       /* Update metadata */
-      meta_set_value (BOARD_QUAD (board, quad_x, quad_y), value);
+      meta_set_value (BOARD_QUAD (board, x, y), value);
       meta_set_value (BOARD_ROW  (board, y), value);
       meta_set_value (BOARD_COL  (board, x), value);
 
       /* Set value */
       board_set (board, x, y, value); 
 
+      return true;
       /* Update board complexity */
-      return board_refresh_complexity (board);
+      //return board_refresh_complexity (board);
     }
     else return false;
   }
@@ -846,8 +849,10 @@ board_place_speculative (
       /* Create duplicate and place value */
       board_copy (board, board_duplicate);
 
-      if (! board_place (board_duplicate, x, y, value))
+      if (! board_place (board_duplicate, x, y, value) || ! board_is_valid (board_duplicate))
         return NULL;
+
+      board_refresh_complexity (board_duplicate);
 
       return board_duplicate;
     }
@@ -860,7 +865,7 @@ board_place_speculative (
 bool
 board_refresh_complexity (struct board *board)
 {
-  board_update_all_marks (board);
+  //board_update_all_marks (board);
 
   board->complexity = 10;
   for (board_pos y = 0; y < 9; ++y)
