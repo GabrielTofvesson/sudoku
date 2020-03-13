@@ -203,6 +203,10 @@ board_unmark (
   element_value value
 );
 
+
+/**
+ * Removes a marking of a potential value of an element
+ */
 bool
 elem_unmark (
   struct board_element *elem,
@@ -249,7 +253,7 @@ board_is_marked (
 
 
 /**
- * get whether or not a given element is marked with a particular value
+ * Get whether or not a given element is marked with a particular value
  */
 bool
 elem_is_marked (

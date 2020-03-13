@@ -78,7 +78,6 @@ board_make_links (struct board *board)
   for (board_pos y = 0; y < 9; ++y)
     for (board_pos x = 0; x < 9; ++x)
     {
-      struct board_element *elem = BOARD_ELEM (board, x, y);
       unsigned pos = ELEM_POS (x, y);
 
       unsigned link_count = -1;
@@ -586,7 +585,6 @@ board_place (
   {
     if (board_meta_can_set (board, x, y, value))
     {
-      struct board_element *elem = BOARD_ELEM (board, x, y);
       unsigned pos = ELEM_POS (x, y);
 
       /* Unmark all adjacent elements */

@@ -319,6 +319,13 @@ first_potential_value (struct board_element *element, struct board *board, bool 
 /**
  * Reduce away all elements on board with complexity=1 until none remain
  */
+#ifdef NOVERB
+bool
+simplify (
+  struct boards_table *board_specs,
+  unsigned long long depth
+)
+#else
 bool
 simplify (
   struct boards_table *board_specs,
@@ -326,10 +333,12 @@ simplify (
   unsigned long long *counter,
   unsigned verbosity
 )
+#endif
 {
   /* Get current table */
   struct board *board = board_specs->board_specs[depth];
 
+#ifndef NOVERB
   if (verbosity > 0)
   {
     if (((*counter) & (0xFFFF >> (4 * (4 - verbosity)))) == 0)
@@ -340,6 +349,7 @@ simplify (
     }
     *counter += 1;
   }
+#endif
 
 
   bool error;
@@ -378,14 +388,14 @@ simplify (
         struct board_element *elem = BOARD_ELEM (board, x, y);
         /* Find a simplest element on the board */
         if (
-            ! board_has_value (board, x, y) &&
+            ! elem->has_value &&
             elem->complexity == board->complexity
         )
           for (element_value value = 0; value < 9; ++value)
           {
             /* Try speculative placement of each potential value and recurse */
             tables_ensure_depth (board_specs, depth + 1);
-            if ((elem->potential & (1 << value)) != 0)
+            if (elem_is_marked (elem, value))
             {
               struct board *board_spec =
                 board_place_speculative (
@@ -399,19 +409,27 @@ simplify (
               /* If speculative placement failed, try another value */
               if (board_spec == NULL)
               {
-                if (! board_unmark (board, x, y, value))
+                if (! elem_unmark (elem, value))
                   return false;
                 continue;
               }
 
               /* Found solution */
+
               if (
+#ifdef NOVERB
+                  simplify (
+                    board_specs,
+                    depth + 1
+                  ) &&
+#else
                   simplify (
                     board_specs,
                     depth + 1,
                     counter,
                     verbosity
                   ) &&
+#endif
                   board_spec->complexity == 0)
               {
                 board_copy (board_spec, board);
@@ -419,7 +437,7 @@ simplify (
                 y = 9;
                 value = 9;
               }
-              else if (! board_unmark (board, x, y, value))
+              else if (! elem_unmark (elem, value))
                 return false;
             }
           }
