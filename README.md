@@ -62,6 +62,14 @@ are really only useful on much slower devices.
 
   * Better structure layouts
 
+  * Optimize speculative value placement error-condition checks
+
+* Cleaner code
+
+  * Move printing to separate file
+
+  * Move board solver algorithm to separate file
+
 * Better error messages
 
 * Makefile
