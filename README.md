@@ -1,6 +1,14 @@
 # Sudoku solver
 A simple sudoku problem solver because I got bored of solving them manually.
 
+## WASM Adaptation
+This branch has been specially adapted to work with WebAssembly: specifically,
+Emcripten. To compile, simply run `emcc main.c board.c -s WASM=1 -o sudoku.html`
+and then open the generated html file in a browser that supports WASM.
+**NOTE:** Emscripten has a terrible default *stdin*, so to enter a board into
+the program, one must enter it as one line, press **OK**, then, when the second
+input text box appears, press **Cancel**.
+
 ## File format
 The sudoku solver accepts a file for the following format:
 * Each row consists of 9 characters (+ newline)
