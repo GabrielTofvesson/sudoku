@@ -44,23 +44,10 @@ or
 912345678
 ```
 
-
-## Compiling and running
-To test the functionality, simply run `gcc -o sudoku main.c board.c`, then
-`./sudoku [-v[v]] {filename}`, where the given file is formatted according to
-the aforementioned specifications.
-
 ## Optimization
 An optimization directive has been included in `board.c` to allow for the near
 complete removal of boundary checks and error conditions. To enable this
 optimization, simply add `-DOPTIMIZE` to your compiler flags.
-
-## Live status output
-If you would like to get a live status output of speculative value placement,
-include the `-v` for verbose-mode solving (or `-vv` for more verbosity) when
-running the sudoku program. **Please note:** Most boards will be solved in a
-matter of milliseconds (at most) on modern machines, so these verbosity options
-are really only useful on much slower devices.
 
 ## TODO
 
