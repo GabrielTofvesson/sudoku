@@ -329,7 +329,7 @@ simplify (
 
   if (verbosity > 0)
   {
-    if ((*counter) & (0xFFFF >> (4 * (4 - verbosity))))
+    if ((*counter) & (0xFFFF >> (4 * (4 - verbosity))) == 0)
     {
       print_board_verbose (board, 0, 0);
       ansi_set_cursor (0, 35);
