@@ -252,66 +252,6 @@ board_update_marks (
 
 
 /**
- * Check if setting a value at a given position would prevent a quadrant from
- * setting a certain value
- */
-bool
-board_can_quad_set_value (
-  struct board *board,
-  board_pos x,
-  board_pos y,
-  element_value value
-);
-
-
-/**
- * Structure describing result of a value search in a quadrant
- */
-struct count_result
-{
-  bool is_set;
-  unsigned char count : 4;
-  struct board_element *unique;
-};
-
-
-/**
- * Compute amount of unset board elements in a quadrant with a given potential
- * bit field value 
- */
-struct count_result
-board_count_quad_potentials (
-  struct board *board,
-  board_pos x,
-  board_pos y,
-  element_value value
-);
-
-
-/**
- * Update potential values by analysing other potential values in quadrant
- */
-bool
-board_update_marks_by_quad (
-  struct board *board,
-  board_pos x,
-  board_pos y
-);
-
-
-/**
- * Update potential values by analysing if it would prevent other quadrants
- * from setting a certain value
- */
-bool
-board_update_marks_by_excl (
-  struct board *board,
-  board_pos x,
-  board_pos y
-);
-
-
-/**
  * Refreshes marks of all board elements without a value
  */
 void

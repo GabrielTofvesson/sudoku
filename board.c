@@ -365,15 +365,6 @@ board_update_marks (
     elem->potential |= BOARD_ROW (board, y)->marked;
     elem->potential |= BOARD_COL (board, x)->marked;
 
-//  for (board_pos check_x = 0; check_x < 9; ++check_x)
-//    if (check_x != x && board_has_value (board, check_x, y))
-//      elem->potential |= (1 << BOARD_ELEM (board, check_x, y)->value);
-
-//  /* Check y-axis */
-//  for (board_pos check_y = 0; check_y < 9; ++check_y)
-//    if (check_y != y && board_has_value (board, x, check_y))
-//      elem->potential |= (1 << BOARD_ELEM (board, x, check_y)->value);
-
     /* Invert matches */
     elem->potential ^= 0x1FF;
 
@@ -400,8 +391,6 @@ board_can_quad_set_value (
 {
   if (is_in_bounds (x, y) && is_valid_value (value))
   {
-    struct board_element *elem = BOARD_ELEM (board, x, y);
-
     /* Compute quadrant bases */
     board_pos quad_x = TO_QUAD (x);
     board_pos quad_y = TO_QUAD (y);
@@ -491,155 +480,12 @@ board_can_quad_set_value (
 }
 
 
-/**
- * Compute amount of unset board elements in a quadrant with a given potential
- * bit field value marked.
- */
-struct count_result
-board_count_quad_potentials (
-  struct board *board,
-  board_pos x,
-  board_pos y,
-  element_value value
-)
-{
-  if (is_in_bounds (x, y) && is_valid_value (value))
-  {
-    board_pos quad_x = TO_QUAD (x);
-    board_pos quad_y = TO_QUAD (y);
-
-    struct count_result result;
-    result.count = 0;
-    result.unique = NULL;
-    result.is_set = false;
-
-    unsigned char count = 0;
-    for (board_pos check_y = 0; check_y < 3; ++check_y)
-      for (board_pos check_x = 0; check_x < 3; ++check_x)
-      {
-        board_pos target_x = quad_x + check_x;
-        board_pos target_y = quad_y + check_y;
-
-        bool has_value = board_has_value (board, target_x, target_y);
-
-        if (! has_value && board_is_marked (board, target_x, target_y, value))
-        {
-          ++result.count;
-          if (result.count == 1)
-            result.unique = BOARD_ELEM (board, target_x, target_y);
-          else
-            result.unique = NULL;
-        }
-        else if (
-                  has_value &&
-                  board_get_value (board, target_x, target_y) == value
-        )
-        {
-          result.count = 1;
-          result.is_set = true;
-          return result;
-        }
-
-      }
-
-    return result;
-  }
-  else ERROR("Invalid parameters to function board_count_quad_potentials()");
-}
-
-
-bool
-board_update_marks_by_quad (
-  struct board *board,
-  board_pos x,
-  board_pos y
-)
-{
-  if (is_in_bounds (x, y))
-  {
-    bool changed = false;
-
-    for (element_value value = 0; value < 9; ++value)
-    {
-      struct count_result result =
-        board_count_quad_potentials (
-          board,
-          x,
-          y,
-          value
-        );
-
-      /* No need to check populated values */
-      if (result.is_set)
-        continue;
-
-      /* If there is only one element that can hold a value, mark it */
-      if (result.unique != NULL && result.unique->potential != (1 << value))
-      {
-        changed |= true;
-        result.unique->potential = 1 << value;
-        result.unique->complexity = 1;
-      }
-    }
-    return changed;
-  }
-  else ERROR("Invalid parameters to function board_update_marks_by_quad()");
-}
-
-
-bool
-board_update_marks_by_excl (
-  struct board *board,
-  board_pos x,
-  board_pos y
-)
-{
-  if (is_in_bounds (x, y))
-  {
-    bool changed = false;
-
-    struct board_element *elem = BOARD_ELEM (board, x, y);
-    unsigned short potential = elem->potential;
-    unsigned char value = 0;
-
-    /* Invert bit field for element removal */
-    elem->potential ^= 0x1FF;
-
-    while (potential != 0)
-    {
-      if ((potential & 1) == 1)
-      {
-        /* If setting value would make another quad unsolvable, un-flip bit */
-        if (! board_can_quad_set_value (board, x, y, value))
-        {
-          changed |= true;
-          elem->potential |= 1 << value;
-        }
-      }
-
-      ++value;
-      potential >>= 1;
-    }
-
-    /* Revert bit field inversion */
-    elem->potential ^= 0x1FF;
-    return changed;
-  }
-  else ERROR("Invalid parameters to function board_update_marks_by_excl()");
-}
-
-static bool
-element_shares_value (struct board *board, board_pos x, board_pos y, element_value value)
-{
-  struct board_element *elem = BOARD_ELEM (board, x, y);
-  return (elem->has_value && elem->value == value) || (! elem->has_value && (elem->potential & (1 << value) != 0));
-}
-
 static inline bool
 field_is_potential (unsigned short field, element_value value)
 {
-  return (field >> (value * 2)) & 3 < 2;
+  return ((field >> (value * 2)) & 3) < 2;
 }
+
 
 static inline void
 field_invalidate (unsigned short *field, element_value value)
@@ -647,98 +493,12 @@ field_invalidate (unsigned short *field, element_value value)
   *field |= 2 << (value * 2);
 }
 
+
 static inline void
 field_increment (unsigned short *field, element_value value)
 {
   if (field_is_potential (*field, value))
     *field += (1 << (value * 2));
-}
-
-static void
-field_populate_values(struct board *board, board_pos x, board_pos y, unsigned short *field)
-{
-  struct board_element *elem = BOARD_ELEM (board, x, y);
-  if (elem->has_value)
-  {
-    field_invalidate (field, elem->value);
-  }
-  else
-  {
-    unsigned short potential = elem->potential;
-    element_value value = 0;
-    while (potential != 0)
-    {
-      if (potential & 1 == 1)
-        field_increment (field, value);
-
-      potential >>= 1;
-      ++value;
-    }
-  }
-}
-
-static bool
-board_update_marks_by_rows (struct board *board)
-{
-  bool changed = false;
-
-  for (board_pos y = 0; y < 9; ++y)
-  {
-    unsigned short field = 0;
-    for (board_pos x = 0; x < 9; ++x)
-      field_populate_values (board, x, y, &field);
-
-    element_value value = 0;
-    while (field != 0)
-    {
-      if (field & 3 == 1)
-      {
-        for (board_pos x = 0; x < 9; ++x)
-          if (element_shares_value (board, x, y, value))
-          {
-            struct board_element *elem = BOARD_ELEM (board, x ,y);
-            elem->complexity = 1;
-            changed |= elem->potential != (elem->potential = (1 << value));
-          }
-      }
-
-      field >>= 2;
-      ++value;
-    }
-  }
-  return changed;
-}
-
-static bool
-board_update_marks_by_cols (struct board *board)
-{
-  bool changed = false;
-
-  for (board_pos x = 0; x < 9; ++x)
-  {
-    unsigned short field = 0;
-    for (board_pos y = 0; y < 9; ++y)
-      field_populate_values (board, x, y, &field);
-
-    element_value value = 0;
-    while (field != 0)
-    {
-      if (field & 3 == 1)
-      {
-        for (board_pos y = 0; y < 9; ++y)
-          if (element_shares_value (board, x, y, value))
-          {
-            struct board_element *elem = BOARD_ELEM (board, x ,y);
-            elem->complexity = 1;
-            changed |= elem->potential != (elem->potential = (1 << value));
-          }
-      }
-
-      field >>= 2;
-      ++value;
-    }
-  }
-  return changed;
 }
 
 
@@ -749,28 +509,6 @@ board_update_all_marks (struct board *board)
     for (board_pos x = 0; x < 9; ++x)
       if (! board_has_value (board, x, y))
         board_update_marks (board, x, y);
-
-  return;
-  bool changed;
-  do
-  {
-    changed = false;
-
-    /* Update marks by exclusion analysis */
-    for (board_pos y = 0; y < 9; ++y)
-      for (board_pos x = 0; x < 9; ++x)
-        if (! board_has_value (board, x, y))
-          changed |= board_update_marks_by_excl (board, x, y);
-
-    /* Update marks by quad potential analysis */
-    for (board_pos y = 0; y < 9; y += 3)
-      for (board_pos x = 0; x < 9; x += 3)
-        changed |= board_update_marks_by_quad (board, x, y);
-
-    changed |= board_update_marks_by_rows (board);
-    changed |= board_update_marks_by_cols (board);
-
-  } while (changed);
 }
 
 
@@ -823,8 +561,6 @@ board_place (
       board_set (board, x, y, value); 
 
       return true;
-      /* Update board complexity */
-      //return board_refresh_complexity (board);
     }
     else return false;
   }
@@ -865,8 +601,6 @@ board_place_speculative (
 bool
 board_refresh_complexity (struct board *board)
 {
-  //board_update_all_marks (board);
-
   board->complexity = 10;
   for (board_pos y = 0; y < 9; ++y)
     for (board_pos x = 0; x < 9; ++x)
