@@ -552,13 +552,13 @@ board_place (
             board_unmark (board, target_x, target_y, value);
         }
 
+      /* Set value */
+      board_set (board, x, y, value); 
+
       /* Update metadata */
       meta_set_value (BOARD_QUAD (board, x, y), value);
       meta_set_value (BOARD_ROW  (board, y), value);
       meta_set_value (BOARD_COL  (board, x), value);
-
-      /* Set value */
-      board_set (board, x, y, value); 
 
       return true;
     }
