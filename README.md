@@ -50,7 +50,9 @@ optimization, simply add `-DOPTIMIZE` to your compiler flags.
 ## Live status output
 If you would like to get a live status output of speculative value placement,
 include the `-v` for verbose-mode solving (or `-vv` for more verbosity) when
-running the sudoku program.
+running the sudoku program. **Please note:** Most boards will be solved in a
+matter of milliseconds (at most) on modern machines, so these verbosity options
+are really only useful on much slower devices.
 
 ## TODO
 
