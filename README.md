@@ -39,8 +39,8 @@ or
 
 ## Compiling and running
 To test the functionality, simply run `gcc -o sudoku main.c board.c`, then
-`./sudoku [filename]`, where the given file is formatted according to the
-aforementioned specifications.
+`./sudoku [-v[v]] {filename}`, where the given file is formatted according to
+the aforementioned specifications.
 
 ## Optimization
 An optimization directive has been included in `board.c` to allow for the near
@@ -49,16 +49,12 @@ optimization, simply add `-DOPTIMIZE` to your compiler flags.
 
 ## Live status output
 If you would like to get a live status output of speculative value placement,
-add the `-DPRINT_STATUS=[mask]` to your compiler flags. The mask specifies the
-bitmask to be applied when determining after how many iterations to print a
-board to the output. For example, `-DPRINT_STATUS=0xFFF` should print a board
-every 4096th (0x1000) call to the simplification algorithm.
+include the `-v` for verbose-mode solving (or `-vv` for more verbosity) when
+running the sudoku program.
 
 ## TODO
 
 * Optimizations
-
-  * Per-quadrant bit-field of populated values
 
   * Packed structures
 
