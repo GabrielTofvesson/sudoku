@@ -35,6 +35,7 @@ struct args {
   bool valid;
   unsigned verbosity : 2;
   char *file_name;
+  bool print_simple;
 };
 
 
@@ -243,42 +244,50 @@ print_board_verbose (
 
 
 static void
-print_board (const struct board *board, const struct board *compare, unsigned whence_x, unsigned whence_y)
+print_board (const struct board *board, const struct board *compare, unsigned whence_x, unsigned whence_y, bool simple)
 {
   for (board_pos y = 0; y < 9; ++y)
   {
     /* Print row */
     for (board_pos x = 0; x < 9; ++x)
     {
-      ansi_set_cursor (whence_x + (x * 2), whence_y + (y * 2));
+      if (! simple)
+        ansi_set_cursor (whence_x + (x * 2), whence_y + (y * 2));
 
       /* Print board element */
       if (board_has_value (board, x, y))
       {
-        if (compare != NULL && ! board_has_value (compare, x, y))
+        if (compare != NULL && ! board_has_value (compare, x, y) && ! simple)
           printf (COLOUR_RED "%u" COLOUR_RESET, board_get_value (board, x, y) + 1);
         else
           printf ("%u", board_get_value (board, x, y) + 1);
       }
       else
-        fputs (" ", stdout);
+        printf (" ");
 
       /* Print column element delimiter */
       if (x < 8)
-        fputs("|", stdout);
+        printf ("|");
     }
+
+    if (simple)
+      puts ("");
+    else
+      ansi_set_cursor (whence_x, whence_y + (y * 2 + 1));
     
     /* Print row element delimiter */
     if (y < 8)
     {
       for (board_pos x = 0; x < 17; ++x)
       {
-        ansi_set_cursor (whence_x + x, whence_y + (y * 2 + 1));
         if ((x & 1) == 0)
-          fputs ("-", stdout);
+          printf ("-");
         else
-          fputs ("+", stdout);
+          printf ("+");
       }
+
+      if (simple)
+        puts ("");
     }
   }
 }
@@ -477,19 +486,6 @@ argparse (int argc, char **argv)
 int
 main (int argc, char **argv, char **env)
 {
-  struct args args = argparse (argc, argv);
-  if (! args.valid)
-  {
-    fputs ("Badly formatted arguments! Usage:\n\t./sudoku [-v[v]] {file name}\n", stderr);
-    return 1;
-  }
-  
-  struct board_file file = load_board_file (args.file_name);
-  if (file.fd == -1 || file.data == NULL)
-    return -1;
-
-  ansi_cursor_show (false);
-
   /* Allocate boards */
   struct board original;
 
@@ -499,19 +495,74 @@ main (int argc, char **argv, char **env)
   tables_ensure_depth (&boards, 0);
 
   struct board *root_board = boards.board_specs[0];
+  
+  struct args args;
+  args.print_simple = false;
 
-  copy_to_board (file, &original);
+
+  if (argc == 1)
+  {
+    FILE *input = fopen ("/dev/stdin", "r");
+    args.print_simple = true;
+    puts ("No file specified! Using stdin:");
+
+    fflush (stdout);
+
+
+    char read;
+
+    puts ("Please enter a board definition without line separators:");
+    char board[89];
+    int track = 0;
+    for (int i = 0; i < 81; ++i)
+    {
+      fread (&read, 1, 1, input);
+      if ((read < '1' || read > '9') && read != ' ')
+        --i;
+      else
+      {
+        board[track] = read;
+        ++track;
+        if (track % 10 == 9) ++track;
+      }
+    }
+
+    struct board_file fake;
+    fake.data = board;
+    copy_to_board (fake, &original);
+
+    args.valid = true;
+    args.verbosity = 0;
+  }
+  else
+  {
+    args = argparse (argc, argv);
+    if (! args.valid)
+    {
+      fputs ("Badly formatted arguments! Usage:\n\t./sudoku [-v[v]] {file name}\n", stderr);
+      return 1;
+    }
+    
+    struct board_file file = load_board_file (args.file_name);
+    if (file.fd == -1 || file.data == NULL)
+      return -1;
+
+    ansi_cursor_show (false);
+
+    copy_to_board (file, &original);
+
+    close_board_file (file);
+  }
+
   board_copy (&original, boards.board_specs[0]);
 
-  close_board_file (file);
 
-
-
-  ansi_clear_screen ();
+  if (! args.print_simple)
+    ansi_clear_screen ();
   
   if (! board_is_valid (root_board))
   {
-    fputs ("Supplied board is not valid!\n", stderr);
+    puts ("Supplied board is not valid!\n");
 
     ansi_cursor_show (true);
     
@@ -535,13 +586,17 @@ main (int argc, char **argv, char **env)
   /* Profiler end time */
   clock_t end_clk = clock ();
 
-  ansi_clear_screen ();
+  if (! args.print_simple)
+    ansi_clear_screen ();
 
-  if (root_board->complexity == 0)
+  if (root_board->complexity == 0 || args.print_simple)
   {
-    print_board (&original, NULL, 0, 0);
-    print_board (root_board, &original, 21, 0);
-    ansi_set_cursor (0, 18);
+
+    if (! args.print_simple)
+      print_board (&original, NULL, 0, 0, args.print_simple);
+    print_board (root_board, &original, 21, 0, args.print_simple);
+    if (! args.print_simple)
+      ansi_set_cursor (0, 18);
   }
   else
   {
