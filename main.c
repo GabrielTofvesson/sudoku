@@ -118,7 +118,7 @@ load_board_file (const char *path)
 
   /* Map 89 bytes of file to memory */
   void *region = mmap (NULL, 89, PROT_READ, MAP_SHARED, fd, 0);
-  if (region == -1)
+  if (region == (void*)-1)
   {
     close (fd);
     return file;
@@ -329,11 +329,11 @@ simplify (
 
   if (verbosity > 0)
   {
-    if ((*counter) & (0xFFFF >> (4 * (4 - verbosity))) == 0)
+    if (((*counter) & (0xFFFF >> (4 * (4 - verbosity)))) == 0)
     {
       print_board_verbose (board, 0, 0);
       ansi_set_cursor (0, 35);
-      printf ("Iteration: %lu", *counter);
+      printf ("Iteration: %llu", *counter);
     }
     *counter += 1;
   }
