@@ -64,7 +64,10 @@ tables_ensure_depth (struct boards_table *board_spec, unsigned long long depth)
 
     /* Allocate boards */
     for (unsigned long long l = board_spec->max_depth; l < new_max; ++l)
+    {
       board_spec->board_specs[l] = malloc (sizeof (struct board));
+      board_make_links (board_spec->board_specs[l]);
+    }
 
     /* Update max depth */
     board_spec->max_depth = new_max;
@@ -358,15 +361,8 @@ simplify (
 
             ++count;
 
-            //fprintf (stderr, "Placing (%u, %u)=%u (potential=%u)\n", x, y, value, elem->potential);
-            
             if (! board_place (board, x, y, value))
-            {
-              bool rerr = meta_has_value (BOARD_ROW (board, y), value);
-              bool cerr = meta_has_value (BOARD_COL (board, x), value);
-              bool qerr = meta_has_value (BOARD_QUAD (board, TO_QUAD (x), TO_QUAD (y)), value);
-              fprintf (stderr, "Error (%u, %u, %u)\n", rerr, cerr, qerr);
-            }
+              return false;
           }
         }
 
@@ -403,7 +399,8 @@ simplify (
               /* If speculative placement failed, try another value */
               if (board_spec == NULL)
               {
-                board_unmark (board, x, y, value);
+                if (! board_unmark (board, x, y, value))
+                  return false;
                 continue;
               }
 
@@ -422,7 +419,8 @@ simplify (
                 y = 9;
                 value = 9;
               }
-              else board_unmark (board, x, y, value);
+              else if (! board_unmark (board, x, y, value))
+                return false;
             }
           }
       }

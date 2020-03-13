@@ -73,6 +73,38 @@ meta_init (struct metadata *meta)
 
 
 void
+board_make_links (struct board *board)
+{
+  for (board_pos y = 0; y < 9; ++y)
+    for (board_pos x = 0; x < 9; ++x)
+    {
+      struct board_element *elem = BOARD_ELEM (board, x, y);
+      unsigned pos = ELEM_POS (x, y);
+
+      unsigned link_count = -1;
+
+      /* Link column adjacents */
+      for (board_pos lx = 0; lx < 9; ++lx)
+        if (lx != x)
+          board->links[pos][++link_count] = BOARD_ELEM (board, lx, y);
+
+      /* Link column adjacents */
+      for (board_pos ly = 0; ly < 9; ++ly)
+        if (ly != y)
+          board->links[pos][++link_count] = BOARD_ELEM (board, x, ly);
+
+      /* Link quadrant adjacents */
+      board_pos qx = TO_QUAD (x);
+      board_pos qy = TO_QUAD (y);
+      for (board_pos lqy = 0; lqy < 3; ++lqy)
+        for (board_pos lqx = 0; lqx < 3; ++lqx)
+          if ((lqx + qx) != x && (lqy + qy) != y)
+            board->links[pos][++link_count] = BOARD_ELEM (board, lqx + qx, lqy + qy);
+    }
+}
+
+
+void
 board_init (struct board *board)
 {
   struct board_element defval;
@@ -80,8 +112,17 @@ board_init (struct board *board)
   defval.potential = 0x1FF;
   defval.complexity = 9;
 
-  for (size_t t = 0; t < (sizeof (board->elements) / sizeof (struct board_element)); ++t)
-    memcpy (&board->elements[t], &defval, sizeof (struct board_element));
+  for (board_pos y = 0; y < 9; ++y)
+    for (board_pos x = 0; x < 9; ++x)
+    {
+      struct board_element *elem = BOARD_ELEM (board, x, y);
+
+      /* Set default state */
+      memcpy (elem, &defval, sizeof (struct board_element));
+    }
+
+
+  board_make_links (board);
 
   board->complexity = 9;
   
@@ -224,6 +265,7 @@ board_set (
     );
 
     struct board_element *elem = BOARD_ELEM (board, x, y);
+    
     elem->has_value = true;
     elem->value = value;
   }
@@ -257,7 +299,7 @@ board_mark (
 }
 
 
-void 
+bool 
 board_unmark (
   struct board *board,
   board_pos x,
@@ -272,16 +314,26 @@ board_unmark (
       "Attempt to mark element with value"
     );
 
-    struct board_element *elem = BOARD_ELEM (board, x, y);
-
-    if (board_is_marked (board, x, y, value))
-    {
-      /* Shift bit to correct place and then invert first 9 bits */
-      elem->potential ^= (1 << value);
-      --(elem->complexity);
-    }
+    return elem_unmark (BOARD_ELEM (board, x, y), value);
   }
   else ERROR("Invalid parameters to function board_unmark()");
+}
+
+
+bool
+elem_unmark (
+  struct board_element *elem,
+  element_value value
+)
+{
+  if (elem_is_marked (elem, value))
+  {
+    /* Shift bit to correct place and then invert first 9 bits */
+    elem->potential ^= (1 << value);
+    --(elem->complexity);
+  }
+
+  return elem->potential != 0;
 }
 
 
@@ -325,9 +377,19 @@ board_is_marked (
 {
   if (is_in_bounds (x, y) && is_valid_value (value))
   {
-    return BOARD_ELEM (board, x, y)->potential & (1 << value);
+    return elem_is_marked(BOARD_ELEM (board, x, y), value);
   }
   else ERROR("Invalid parameters to function board_is_marked()");
+}
+
+
+bool
+elem_is_marked (
+  const struct board_element *elem,
+  element_value value
+)
+{
+  return elem->potential & (1 << value);
 }
 
 
@@ -524,32 +586,18 @@ board_place (
   {
     if (board_meta_can_set (board, x, y, value))
     {
-      /* Unmark x-axis */
-      for (board_pos unmark_x = 0; unmark_x < 9; ++unmark_x)
-        if (unmark_x != x && ! board_has_value (board, unmark_x, y))
-          board_unmark (board, unmark_x, y, value);
+      struct board_element *elem = BOARD_ELEM (board, x, y);
+      unsigned pos = ELEM_POS (x, y);
 
-      /* Unmark y-axis */
-      for (board_pos unmark_y = 0; unmark_y < 9; ++unmark_y)
-        if (unmark_y != y && ! board_has_value (board, x, unmark_y))
-          board_unmark (board, x, unmark_y, value);
-
-      /* Update quad */
-      board_pos quad_x = TO_QUAD (x);
-      board_pos quad_y = TO_QUAD (y);
-
-      for (board_pos unmark_y = 0; unmark_y < 3; ++unmark_y)
-        for (board_pos unmark_x = 0; unmark_x < 3; ++unmark_x)
+      /* Unmark all adjacent elements */
+      for (unsigned i = 0; i < 20; ++i)
+        if (
+          ! board->links[pos][i]->has_value &&
+          ! elem_unmark (board->links[pos][i], value)
+        )
         {
-          board_pos target_x = quad_x + unmark_x;
-          board_pos target_y = quad_y + unmark_y;
-
-          /* Unmark value for all unset elements in quad */
-          if (
-              (target_x != x || target_y != y) &&
-              !board_has_value (board, target_x, target_y)
-          )
-            board_unmark (board, target_x, target_y, value);
+          /* Unmarking potential caused element to have no potential */
+          return false;
         }
 
       /* Set value */
@@ -585,7 +633,7 @@ board_place_speculative (
       /* Create duplicate and place value */
       board_copy (board, board_duplicate);
 
-      if (! board_place (board_duplicate, x, y, value) || ! board_is_valid (board_duplicate))
+      if (! board_place (board_duplicate, x, y, value))
         return NULL;
 
       board_refresh_complexity (board_duplicate);
@@ -632,5 +680,10 @@ board_refresh_complexity (struct board *board)
 void
 board_copy (const struct board *board_from, struct board *board_to)
 {
-  memcpy (board_to, board_from, sizeof(struct board));
+  /* Copy everything except the links */
+  memcpy (
+      board_to,
+      board_from,
+      sizeof(struct board) - sizeof (((struct board *)0)->links)
+  );
 }

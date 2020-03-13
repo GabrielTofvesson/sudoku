@@ -6,10 +6,13 @@
 
 #include <stdbool.h>
 
+
+#define ELEM_POS(x, y) (((y) * 9) + (x))
+
 /**
  * Get a `struct board_element`-entry from a specified location on the board
  */
-#define BOARD_ELEM(board_ptr, x, y) (&(board_ptr)->elements[((y) * 9) + (x)])
+#define BOARD_ELEM(board_ptr, x, y) (&(board_ptr)->elements[ELEM_POS (x, y)])
 
 /**
  * Get a `struct metadata`-entry from a specified location on the quadrand grid
@@ -32,6 +35,8 @@
  */
 #define TO_QUAD(pos) (((pos) / 3) * 3)
 
+struct board_element;
+
 typedef unsigned short int board_pos;
 typedef unsigned char element_value;
 
@@ -45,13 +50,9 @@ typedef unsigned char element_value;
 struct board_element {
   bool has_value : 1;                 /* Whether element has a decided value */
 
-  union {
-    element_value    value      : 4;  /* Value of element */
-    struct {
-      unsigned short potential  : 9;  /* Bitfield of possible values */
-      unsigned char  complexity : 4;  /* Complexity tracker */
-    };
-  };
+  element_value value : 4;            /* Value of element */
+  unsigned short potential : 9;       /* Bitfield of possible values*/
+  unsigned char complexity : 4;       /* Complexity tracker */
 };
 
 /**
@@ -80,6 +81,9 @@ struct board {
   struct metadata meta_quad [9];      /* Quadrant metadata */
   struct metadata meta_row  [9];      /* Row metadata */
   struct metadata meta_col  [9];      /* Column metadata */
+
+
+  struct board_element *links [81][20];/* All "connected", "adjacent" elements */
 };
 
 
@@ -88,6 +92,13 @@ struct board {
  */
 void
 meta_init (struct metadata *meta);
+
+
+/*
+ * Just generate board element adjacency links
+ */
+void
+board_make_links (struct board *board);
 
 
 /**
@@ -184,11 +195,17 @@ board_mark (
  *
  * NOTE: Unmarking an element with a decied value is undefined
  */
-void
+bool
 board_unmark (
   struct board *board,
   board_pos x,
   board_pos y,
+  element_value value
+);
+
+bool
+elem_unmark (
+  struct board_element *elem,
   element_value value
 );
 
@@ -227,6 +244,16 @@ board_is_marked (
   const struct board *board,
   board_pos x,
   board_pos y,
+  element_value value
+);
+
+
+/**
+ * get whether or not a given element is marked with a particular value
+ */
+bool
+elem_is_marked (
+  const struct board_element *elem,
   element_value value
 );
 
