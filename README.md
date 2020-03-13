@@ -45,7 +45,8 @@ the aforementioned specifications.
 ## Optimization
 An optimization directive has been included in `board.c` to allow for the near
 complete removal of boundary checks and error conditions. To enable this
-optimization, simply add `-DOPTIMIZE` to your compiler flags.
+optimization, simply add `-DOPTIMIZE` to your compiler flags. For insane speeds,
+don't forget the `-O3` gcc flag.
 
 ## Live status output
 If you would like to get a live status output of speculative value placement,
@@ -55,14 +56,6 @@ matter of milliseconds (at most) on modern machines, so these verbosity options
 are really only useful on much slower devices.
 
 ## TODO
-
-* Optimizations
-
-  * Packed structures
-
-  * Better structure layouts
-
-  * Optimize speculative value placement error-condition checks
 
 * Cleaner code
 
